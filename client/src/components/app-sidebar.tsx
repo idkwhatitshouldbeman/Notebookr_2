@@ -10,18 +10,24 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { FileText, Home, Settings, Search } from "lucide-react";
+import { FileText, Home, LogOut, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import type { Notebook } from "@shared/schema";
+import { useAuth } from "@/hooks/useAuth";
 
 export function AppSidebar() {
+  const { logoutMutation } = useAuth();
   const { data: notebooks = [] } = useQuery<Notebook[]>({
     queryKey: ["/api/notebooks"],
   });
 
   const privatePages = notebooks.slice(0, 10);
+  
+  const handleLogout = () => {
+    logoutMutation.mutate();
+  };
 
   return (
     <Sidebar>
@@ -83,11 +89,9 @@ export function AppSidebar() {
       <SidebarFooter className="p-4">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <Link href="/settings" data-testid="link-settings">
-                <Settings className="h-4 w-4" />
-                <span>Settings</span>
-              </Link>
+            <SidebarMenuButton onClick={handleLogout} data-testid="button-logout">
+              <LogOut className="h-4 w-4" />
+              <span>Logout</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

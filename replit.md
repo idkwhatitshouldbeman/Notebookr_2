@@ -10,11 +10,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (October 15, 2025)
 
-### Authentication System
-- Implemented Replit Auth with OpenID Connect for user authentication
-- Users can sign in via Google, GitHub, or email/password
-- Landing page for logged-out users with feature highlights
-- Protected routes with user ownership validation
+### Standalone Authentication System (Latest)
+- Replaced Replit Auth with standalone username/password authentication
+- Users create accounts with username, password, and optional profile info
+- Secure password hashing using scrypt
+- Session management via PostgreSQL (connect-pg-simple)
+- Auth page at /auth with login and registration forms
+- Password hashes are sanitized from all API responses for security
+- Logout button in sidebar for easy sign out
 
 ### Chat-Based UI Redesign
 - Replaced textarea-based editing with conversational chat interface
@@ -23,6 +26,7 @@ Preferred communication style: Simple, everyday language.
 - Real-time content updates with automatic section assignment
 
 ### Database Schema Updates
+- Added username and password fields to users table for standalone auth
 - Added users and sessions tables for authentication
 - Added userId foreign key to notebooks for user ownership
 - All routes now enforce user-scoped data access for security
@@ -47,7 +51,8 @@ Preferred communication style: Simple, everyday language.
 - Responsive design with mobile-first approach
 
 **Key Features:**
-- User authentication with Replit Auth (Google, GitHub, email/password)
+- User authentication with standalone username/password system
+- Secure password hashing and session management
 - Chat-based interface where AI writes all notebook content
 - Conversational AI understands context and updates appropriate sections
 - Notebook creation and management with emoji support
@@ -67,7 +72,9 @@ Preferred communication style: Simple, everyday language.
 
 **API Design:**
 - RESTful API structure with resource-based endpoints
-- Authentication endpoints: GET /api/auth/user, GET /api/login, GET /api/callback, GET /api/logout
+- Authentication endpoints: POST /api/register, POST /api/login, POST /api/logout, GET /api/user
+- Password hashing using scrypt before storage
+- User responses sanitized to exclude password hashes
 - Notebooks endpoints (protected): GET /api/notebooks, POST /api/notebooks, GET /api/notebooks/:id, PATCH /api/notebooks/:id, DELETE /api/notebooks/:id
 - Sections endpoints (protected): GET /api/notebooks/:id/sections, POST /api/sections, PATCH /api/sections/:id, DELETE /api/sections/:id
 - AI generation endpoint (protected): POST /api/ai/generate with prompt and context support
@@ -75,16 +82,18 @@ Preferred communication style: Simple, everyday language.
 - Request validation using Zod schemas with drizzle-zod integration
 
 **Data Models:**
-- **Users:** id, email, firstName, lastName, profileImageUrl, createdAt, updatedAt
+- **Users:** id, username (unique), password (hashed), email, firstName, lastName, profileImageUrl, createdAt, updatedAt
 - **Sessions:** sid, sess (jsonb), expire (for PostgreSQL session storage)
 - **Notebooks:** id, userId (foreign key with cascade delete), title, emoji, createdAt, updatedAt
 - **Sections:** id, notebookId (foreign key with cascade delete), title, content, orderIndex (for ordering)
 - Schema-first approach with Drizzle ORM and automatic type inference
 - insertNotebookSchema omits id, userId, createdAt, updatedAt (userId added by server from auth)
+- Password field is omitted from all API responses for security
 
 **Development Approach:**
 - PostgreSQL database with Drizzle ORM for persistent storage
-- Replit Auth with passport.js for authentication and session management
+- Standalone authentication with passport-local strategy
+- Secure password hashing using scrypt
 - PostgreSQL session storage using connect-pg-simple
 - Hot module replacement in development via Vite middleware integration
 - Custom logging middleware for API request tracking
