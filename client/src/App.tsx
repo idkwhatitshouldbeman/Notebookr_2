@@ -36,9 +36,11 @@ function Router() {
 
 function AppLayout() {
   const [location] = useLocation();
+  const { isAuthenticated, isLoading } = useAuth();
   const isSignInPage = location === "/signin";
 
-  if (isSignInPage) {
+  // Show landing page without sidebar when not authenticated
+  if (isSignInPage || isLoading || !isAuthenticated) {
     return <Router />;
   }
 
