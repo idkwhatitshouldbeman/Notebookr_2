@@ -1,16 +1,21 @@
-import { type Notebook, type InsertNotebook, type Section, type InsertSection, notebooks, sections } from "@shared/schema";
+import { type Notebook, type InsertNotebook, type Section, type InsertSection, type User, type UpsertUser, notebooks, sections, users } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc } from "drizzle-orm";
 
 export interface IStorage {
+  // User operations (required for Replit Auth)
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+  
   // Notebooks
-  getNotebooks(): Promise<Notebook[]>;
+  getNotebooks(userId: string): Promise<Notebook[]>;
   getNotebook(id: string): Promise<Notebook | undefined>;
   createNotebook(notebook: InsertNotebook): Promise<Notebook>;
   updateNotebook(id: string, notebook: Partial<InsertNotebook>): Promise<Notebook | undefined>;
   deleteNotebook(id: string): Promise<void>;
   
   // Sections
+  getSection(id: string): Promise<Section | undefined>;
   getSectionsByNotebookId(notebookId: string): Promise<Section[]>;
   createSection(section: InsertSection): Promise<Section>;
   updateSection(id: string, content: string): Promise<Section | undefined>;
@@ -18,8 +23,30 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  async getNotebooks(): Promise<Notebook[]> {
-    return await db.select().from(notebooks).orderBy(desc(notebooks.updatedAt));
+  // User operations (required for Replit Auth)
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
+  // Notebooks
+  async getNotebooks(userId: string): Promise<Notebook[]> {
+    return await db.select().from(notebooks).where(eq(notebooks.userId, userId)).orderBy(desc(notebooks.updatedAt));
   }
 
   async getNotebook(id: string): Promise<Notebook | undefined> {
@@ -42,6 +69,12 @@ export class DatabaseStorage implements IStorage {
 
   async deleteNotebook(id: string): Promise<void> {
     await db.delete(notebooks).where(eq(notebooks.id, id));
+  }
+
+  // Sections
+  async getSection(id: string): Promise<Section | undefined> {
+    const [section] = await db.select().from(sections).where(eq(sections.id, id));
+    return section;
   }
 
   async getSectionsByNotebookId(notebookId: string): Promise<Section[]> {

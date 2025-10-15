@@ -7,6 +7,8 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useAuth } from "@/hooks/useAuth";
+import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
 import Notebook from "@/pages/Notebook";
 import Templates from "@/pages/Templates";
@@ -14,12 +16,19 @@ import SignIn from "@/pages/SignIn";
 import NotFound from "@/pages/not-found";
 
 function Router() {
+  const { isAuthenticated, isLoading } = useAuth();
+
   return (
     <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/signin" component={SignIn} />
-      <Route path="/notebook/:id" component={Notebook} />
-      <Route path="/templates" component={Templates} />
+      {isLoading || !isAuthenticated ? (
+        <Route path="/" component={Landing} />
+      ) : (
+        <>
+          <Route path="/" component={Home} />
+          <Route path="/notebook/:id" component={Notebook} />
+          <Route path="/templates" component={Templates} />
+        </>
+      )}
       <Route component={NotFound} />
     </Switch>
   );
