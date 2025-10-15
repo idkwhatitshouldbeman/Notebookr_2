@@ -33,11 +33,12 @@ export default function Notebook() {
     {
       id: "1",
       role: "assistant",
-      content: "Hi! I'm here to help you write your engineering notebook. Just tell me what you want to add or modify, and I'll update the appropriate sections for you."
+      content: "Ready to edit your notebook. Give me instructions and I'll update the sections directly."
     }
   ]);
   const [input, setInput] = useState("");
   const [selectedSection, setSelectedSection] = useState<Section | null>(null);
+  const [editingSections, setEditingSections] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: notebook } = useQuery<NotebookType>({
@@ -97,13 +98,27 @@ export default function Notebook() {
   });
 
   const generateAI = useMutation({
-    mutationFn: async (data: { prompt: string; context: Array<{ title: string; content: string }> }) => {
+    mutationFn: async (data: { instruction: string; sections: Array<{ id: string; title: string; content: string }> }) => {
       const response = await fetch("/api/ai/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
       return response.json();
+    },
+  });
+
+  const createSection = useMutation({
+    mutationFn: async (data: { notebookId: string; title: string; content: string; orderIndex: number }) => {
+      const response = await fetch("/api/sections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notebooks", id, "sections"] });
     },
   });
 
@@ -116,7 +131,7 @@ export default function Notebook() {
   const handleSend = async () => {
     if (!input.trim() || !Array.isArray(sections)) return;
 
-    console.log("🚀 User sending message:", input);
+    console.log("🚀 User instruction:", input);
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -124,51 +139,90 @@ export default function Notebook() {
       content: input,
     };
     setMessages(prev => [...prev, userMessage]);
-    const userPrompt = input;
+    const instruction = input;
     setInput("");
 
-    const context = sections.map(s => ({ title: s.title, content: s.content }));
-    console.log("📝 Context sections:", context);
+    const currentSections = sections.map(s => ({ 
+      id: s.id, 
+      title: s.title, 
+      content: s.content || '' 
+    }));
+    console.log("📝 Current sections:", currentSections);
     
     try {
-      console.log("🤖 Requesting AI generation...");
-      const result = await generateAI.mutateAsync({ prompt: userPrompt, context });
+      console.log("🤖 AI is editing notebook...");
+      const result = await generateAI.mutateAsync({ instruction, sections: currentSections });
       console.log("✅ AI Response:", result);
       
+      // Add AI message to chat
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: result.content,
+        content: result.message || "I've updated the notebook sections.",
       };
       setMessages(prev => [...prev, aiMessage]);
 
-      const targetSection = sections.find(s => 
-        userPrompt.toLowerCase().includes(s.title.toLowerCase()) || 
-        result.content.toLowerCase().includes(s.title.toLowerCase())
-      ) || sections[0];
+      // Apply AI actions automatically (Cursor-style)
+      if (result.actions && Array.isArray(result.actions)) {
+        let createCount = 0;
+        for (const action of result.actions) {
+          // Validate action has required fields
+          if (!action.type || !action.sectionId || action.content === undefined) {
+            console.warn(`⚠️ Skipping invalid action:`, action);
+            continue;
+          }
 
-      console.log("🎯 Target section for update:", targetSection?.title);
-
-      if (targetSection) {
-        const newContent = targetSection.content 
-          ? `${targetSection.content}\n\n${result.content}` 
-          : result.content;
+          console.log(`🔧 Applying action: ${action.type} on ${action.sectionId}`);
+          
+          if (action.type === "update") {
+            // Find the section and update it
+            const targetSection = sections.find(s => s.id === action.sectionId);
+            if (targetSection) {
+              setEditingSections(prev => new Set(prev).add(targetSection.id));
+              try {
+                await updateSection.mutateAsync({ 
+                  sectionId: action.sectionId, 
+                  content: action.content 
+                });
+                console.log(`✅ Updated section: ${targetSection.title}`);
+              } catch (error) {
+                console.error(`❌ Failed to update section ${targetSection.title}:`, error);
+              } finally {
+                setEditingSections(prev => {
+                  const next = new Set(prev);
+                  next.delete(targetSection.id);
+                  return next;
+                });
+              }
+            } else {
+              console.warn(`⚠️ Section ${action.sectionId} not found for update`);
+            }
+          } else if (action.type === "create") {
+            // Create new section with unique orderIndex
+            try {
+              await createSection.mutateAsync({
+                notebookId: id!,
+                title: action.sectionId,
+                content: action.content,
+                orderIndex: sections.length + createCount
+              });
+              createCount++;
+              console.log(`✅ Created new section: ${action.sectionId}`);
+            } catch (error) {
+              console.error(`❌ Failed to create section ${action.sectionId}:`, error);
+            }
+          }
+        }
         
-        console.log("💾 Updating section with new content...");
-        await updateSection.mutateAsync({ 
-          sectionId: targetSection.id, 
-          content: newContent 
-        });
-        console.log("✅ Section updated successfully");
-        
+        // Refresh sections after all updates
         queryClient.invalidateQueries({ queryKey: ["/api/notebooks", id, "sections"] });
       }
     } catch (error) {
-      console.error("❌ AI generation error:", error);
+      console.error("❌ AI error:", error);
       const errorMessage: Message = {
         id: (Date.now() + 2).toString(),
         role: "assistant",
-        content: "Sorry, I encountered an error generating content. Please try again."
+        content: "Sorry, I encountered an error. Please try again."
       };
       setMessages(prev => [...prev, errorMessage]);
     }
@@ -230,7 +284,7 @@ export default function Notebook() {
                   handleSend();
                 }
               }}
-              placeholder="Tell me what to write... (e.g., 'Add an objectives section about measuring thermal conductivity')"
+              placeholder="Instruction for the AI... (e.g., 'Add detailed objectives about measuring thermal conductivity')"
               className="resize-none"
               rows={3}
               data-testid="textarea-chat-input"
@@ -258,13 +312,18 @@ export default function Notebook() {
             <button
               key={section.id}
               onClick={() => setSelectedSection(section)}
-              className={`w-full text-left p-3 rounded-md hover-elevate transition-all ${
+              className={`w-full text-left p-3 rounded-md hover-elevate transition-all relative ${
                 selectedSection?.id === section.id ? "bg-accent" : ""
+              } ${
+                editingSections.has(section.id) ? "ring-2 ring-primary animate-pulse" : ""
               }`}
               data-testid={`chapter-link-${section.title.toLowerCase()}`}
             >
-              <div className="font-medium text-foreground text-sm mb-1">
+              <div className="font-medium text-foreground text-sm mb-1 flex items-center gap-2">
                 {index + 1}. {section.title}
+                {editingSections.has(section.id) && (
+                  <Sparkles className="h-3 w-3 text-primary animate-spin" />
+                )}
               </div>
               {section.content && (
                 <div className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap line-clamp-3">

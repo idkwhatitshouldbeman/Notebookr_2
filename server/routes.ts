@@ -112,14 +112,15 @@ export function registerRoutes(app: Express): Server {
     res.json(updated);
   });
 
-  // AI Generation
+  // AI Generation - Cursor-style direct editing
   app.post("/api/ai/generate", isAuthenticated, async (req, res) => {
     const schema = z.object({
-      prompt: z.string(),
-      context: z.array(z.object({
+      instruction: z.string(),
+      sections: z.array(z.object({
+        id: z.string(),
         title: z.string(),
         content: z.string(),
-      })).optional(),
+      })),
     });
 
     const result = schema.safeParse(req.body);
@@ -127,31 +128,61 @@ export function registerRoutes(app: Express): Server {
       return res.status(400).json({ error: result.error });
     }
 
-    const { prompt, context = [] } = result.data;
+    const { instruction, sections } = result.data;
 
     try {
-      // Build context from previous sections
-      const contextText = context
-        .filter(c => c.content)
-        .map(c => `${c.title}: ${c.content}`)
+      // Build current notebook state
+      const notebookState = sections
+        .map(s => `## ${s.title}\n${s.content || '(empty)'}`)
         .join('\n\n');
 
-      const systemPrompt = `You are an AI assistant helping to write engineering notebooks. 
-Generate clear, professional, technical content based on the user's request.
-${contextText ? `\nPrevious sections for context:\n${contextText}` : ''}`;
+      const systemPrompt = `You are an AI assistant that directly edits engineering notebook sections, similar to how Cursor AI edits code files.
+
+CURRENT NOTEBOOK SECTIONS:
+${notebookState}
+
+Your job: Analyze the user's instruction and determine which sections need to be updated, created, or modified.
+
+You must respond with ONLY valid JSON in this exact format:
+{
+  "actions": [
+    {
+      "type": "update",
+      "sectionId": "section-id-here",
+      "content": "new content to SET (not append) for this section"
+    }
+  ],
+  "message": "Brief explanation of what you did"
+}
+
+Action types:
+- "update": Replace the entire content of an existing section
+- "create": Create a new section (use sectionId as the title)
+
+IMPORTANT RULES:
+1. Be specific and technical - this is an engineering notebook
+2. Write complete, well-structured content for each section
+3. When updating a section, provide the FULL new content (not just additions)
+4. Keep related information in appropriate sections
+5. If content doesn't fit existing sections, create a new one
+6. Always return valid JSON only`;
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: prompt }
+          { role: "user", content: instruction }
         ],
         temperature: 0.7,
-        max_tokens: 1000,
+        max_tokens: 2000,
+        response_format: { type: "json_object" }
       });
 
-      const generatedContent = completion.choices[0]?.message?.content || "";
-      res.json({ content: generatedContent });
+      const responseText = completion.choices[0]?.message?.content || "{}";
+      const aiResponse = JSON.parse(responseText);
+      
+      console.log("🤖 AI Response:", aiResponse);
+      res.json(aiResponse);
     } catch (error) {
       console.error("AI generation error:", error);
       res.status(500).json({ error: "Failed to generate content" });
