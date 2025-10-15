@@ -1,16 +1,25 @@
-import { type Notebook, type InsertNotebook, type Section, type InsertSection, type User, type UpsertUser, notebooks, sections, users } from "@shared/schema";
+import { type Notebook, type InsertNotebook, type Section, type InsertSection, type User, type InsertUser, notebooks, sections, users } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc } from "drizzle-orm";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
+import { pool } from "./db";
+
+const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
-  // User operations (required for Replit Auth)
+  // User operations (required for standalone auth)
   getUser(id: string): Promise<User | undefined>;
-  upsertUser(user: UpsertUser): Promise<User>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+  
+  // Session store
+  sessionStore: session.Store;
   
   // Notebooks
   getNotebooks(userId: string): Promise<Notebook[]>;
   getNotebook(id: string): Promise<Notebook | undefined>;
-  createNotebook(notebook: InsertNotebook): Promise<Notebook>;
+  createNotebook(notebook: InsertNotebook & { userId: string }): Promise<Notebook>;
   updateNotebook(id: string, notebook: Partial<InsertNotebook>): Promise<Notebook | undefined>;
   deleteNotebook(id: string): Promise<void>;
   
@@ -23,24 +32,25 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  // User operations (required for Replit Auth)
+  sessionStore: session.Store;
+
+  constructor() {
+    this.sessionStore = new PostgresSessionStore({ pool, createTableIfMissing: false, tableName: "sessions" });
+  }
+
+  // User operations (required for standalone auth)
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 
-  async upsertUser(userData: UpsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async createUser(userData: InsertUser): Promise<User> {
+    const [user] = await db.insert(users).values(userData).returning();
     return user;
   }
 
@@ -54,7 +64,7 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  async createNotebook(insertNotebook: InsertNotebook): Promise<Notebook> {
+  async createNotebook(insertNotebook: InsertNotebook & { userId: string }): Promise<Notebook> {
     const result = await db.insert(notebooks).values(insertNotebook).returning();
     return result[0];
   }

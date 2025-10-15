@@ -4,41 +4,26 @@ import { storage } from "./storage";
 import { insertNotebookSchema, insertSectionSchema } from "@shared/schema";
 import { z } from "zod";
 import OpenAI from "openai";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated } from "./auth";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
-export async function registerRoutes(app: Express): Promise<Server> {
-  // Setup authentication
-  await setupAuth(app);
-
-  // Auth routes
-  app.get('/api/auth/user', async (req: any, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user?.claims?.sub) {
-        return res.json(null);
-      }
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
-    }
-  });
+export function registerRoutes(app: Express): Server {
+  // Setup authentication - now includes /api/register, /api/login, /api/logout, /api/user
+  setupAuth(app);
 
   // Notebooks (protected)
   app.get("/api/notebooks", isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.user.id;
     const notebooks = await storage.getNotebooks(userId);
     res.json(notebooks);
   });
 
   app.get("/api/notebooks/:id", isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.user.id;
     const notebook = await storage.getNotebook(req.params.id);
     if (!notebook) {
       return res.status(404).json({ error: "Notebook not found" });
@@ -50,7 +35,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/notebooks", isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.user.id;
     const result = insertNotebookSchema.safeParse(req.body);
     if (!result.success) {
       return res.status(400).json({ error: result.error });
@@ -60,7 +45,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/notebooks/:id", isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.user.id;
     const notebook = await storage.getNotebook(req.params.id);
     if (!notebook || notebook.userId !== userId) {
       return res.status(403).json({ error: "Forbidden" });
@@ -74,7 +59,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete("/api/notebooks/:id", isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.user.id;
     const notebook = await storage.getNotebook(req.params.id);
     if (!notebook || notebook.userId !== userId) {
       return res.status(403).json({ error: "Forbidden" });
@@ -85,7 +70,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Sections
   app.get("/api/notebooks/:notebookId/sections", isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.user.id;
     const notebook = await storage.getNotebook(req.params.notebookId);
     if (!notebook || notebook.userId !== userId) {
       return res.status(403).json({ error: "Forbidden" });
@@ -100,7 +85,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ error: result.error });
     }
     const notebook = await storage.getNotebook(result.data.notebookId);
-    const userId = req.user.claims.sub;
+    const userId = req.user.id;
     if (!notebook || notebook.userId !== userId) {
       return res.status(403).json({ error: "Forbidden" });
     }
@@ -109,7 +94,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/sections/:id", isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.user.id;
     const section = await storage.getSection(req.params.id);
     if (!section) {
       return res.status(404).json({ error: "Section not found" });

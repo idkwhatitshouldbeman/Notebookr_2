@@ -1,34 +1,28 @@
+// Based on blueprint:javascript_auth_all_persistance
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/hooks/useAuth";
-import Landing from "@/pages/Landing";
+import { ProtectedRoute } from "@/lib/protected-route";
+import Auth from "@/pages/Auth";
 import Home from "@/pages/Home";
 import Notebook from "@/pages/Notebook";
 import Templates from "@/pages/Templates";
-import SignIn from "@/pages/SignIn";
 import NotFound from "@/pages/not-found";
 
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
-
   return (
     <Switch>
-      {isLoading || !isAuthenticated ? (
-        <Route path="/" component={Landing} />
-      ) : (
-        <>
-          <Route path="/" component={Home} />
-          <Route path="/notebook/:id" component={Notebook} />
-          <Route path="/templates" component={Templates} />
-        </>
-      )}
+      <Route path="/auth" component={Auth} />
+      <ProtectedRoute path="/" component={Home} />
+      <ProtectedRoute path="/notebook/:id" component={Notebook} />
+      <ProtectedRoute path="/templates" component={Templates} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -36,11 +30,11 @@ function Router() {
 
 function AppLayout() {
   const [location] = useLocation();
-  const { isAuthenticated, isLoading } = useAuth();
-  const isSignInPage = location === "/signin";
+  const { isAuthenticated } = useAuth();
+  const isAuthPage = location === "/auth";
 
-  // Show landing page without sidebar when not authenticated
-  if (isSignInPage || isLoading || !isAuthenticated) {
+  // Show auth page without sidebar when on /auth
+  if (isAuthPage || !isAuthenticated) {
     return <Router />;
   }
 
