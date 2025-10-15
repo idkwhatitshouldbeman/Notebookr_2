@@ -1,5 +1,6 @@
-import { type Notebook, type InsertNotebook, type Section, type InsertSection } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { type Notebook, type InsertNotebook, type Section, type InsertSection, notebooks, sections } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc, asc } from "drizzle-orm";
 
 export interface IStorage {
   // Notebooks
@@ -16,98 +17,63 @@ export interface IStorage {
   deleteSection(id: string): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private notebooks: Map<string, Notebook>;
-  private sections: Map<string, Section>;
-
-  constructor() {
-    this.notebooks = new Map();
-    this.sections = new Map();
-  }
-
+export class DatabaseStorage implements IStorage {
   async getNotebooks(): Promise<Notebook[]> {
-    return Array.from(this.notebooks.values()).sort((a, b) => 
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    );
+    return await db.select().from(notebooks).orderBy(desc(notebooks.updatedAt));
   }
 
   async getNotebook(id: string): Promise<Notebook | undefined> {
-    return this.notebooks.get(id);
+    const result = await db.select().from(notebooks).where(eq(notebooks.id, id));
+    return result[0];
   }
 
   async createNotebook(insertNotebook: InsertNotebook): Promise<Notebook> {
-    const id = randomUUID();
-    const now = new Date();
-    const notebook: Notebook = { 
-      id,
-      title: insertNotebook.title,
-      emoji: insertNotebook.emoji ?? "📝",
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.notebooks.set(id, notebook);
-    return notebook;
+    const result = await db.insert(notebooks).values(insertNotebook).returning();
+    return result[0];
   }
 
   async updateNotebook(id: string, updates: Partial<InsertNotebook>): Promise<Notebook | undefined> {
-    const notebook = this.notebooks.get(id);
-    if (!notebook) return undefined;
-    
-    const updated: Notebook = { 
-      ...notebook, 
-      ...updates,
-      updatedAt: new Date(),
-    };
-    this.notebooks.set(id, updated);
-    return updated;
+    const result = await db.update(notebooks)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(notebooks.id, id))
+      .returning();
+    return result[0];
   }
 
   async deleteNotebook(id: string): Promise<void> {
-    this.notebooks.delete(id);
-    // Delete associated sections
-    Array.from(this.sections.values())
-      .filter(s => s.notebookId === id)
-      .forEach(s => this.sections.delete(s.id));
+    await db.delete(notebooks).where(eq(notebooks.id, id));
   }
 
   async getSectionsByNotebookId(notebookId: string): Promise<Section[]> {
-    return Array.from(this.sections.values())
-      .filter(s => s.notebookId === notebookId)
-      .sort((a, b) => a.orderIndex.localeCompare(b.orderIndex));
+    return await db.select()
+      .from(sections)
+      .where(eq(sections.notebookId, notebookId))
+      .orderBy(asc(sections.orderIndex));
   }
 
   async createSection(insertSection: InsertSection): Promise<Section> {
-    const id = randomUUID();
-    const section: Section = { 
-      id,
-      notebookId: insertSection.notebookId,
-      title: insertSection.title,
-      content: insertSection.content ?? "",
-      orderIndex: insertSection.orderIndex,
-    };
-    this.sections.set(id, section);
-    return section;
+    const result = await db.insert(sections).values(insertSection).returning();
+    return result[0];
   }
 
   async updateSection(id: string, content: string): Promise<Section | undefined> {
-    const section = this.sections.get(id);
-    if (!section) return undefined;
+    const result = await db.update(sections)
+      .set({ content })
+      .where(eq(sections.id, id))
+      .returning();
     
-    const updated: Section = { ...section, content };
-    this.sections.set(id, updated);
-    
-    // Update notebook's updatedAt
-    const notebook = this.notebooks.get(section.notebookId);
-    if (notebook) {
-      this.notebooks.set(notebook.id, { ...notebook, updatedAt: new Date() });
+    if (result[0]) {
+      await db.update(notebooks)
+        .set({ updatedAt: new Date() })
+        .where(eq(notebooks.id, result[0].notebookId));
     }
     
-    return updated;
+    return result[0];
   }
 
   async deleteSection(id: string): Promise<void> {
-    this.sections.delete(id);
+    await db.delete(sections).where(eq(sections.id, id));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
