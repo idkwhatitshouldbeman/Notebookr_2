@@ -7,6 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Send, Sparkles, FileText, User, Bot } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import type { Notebook as NotebookType, Section } from "@shared/schema";
@@ -30,7 +37,7 @@ export default function Notebook() {
     }
   ]);
   const [input, setInput] = useState("");
-  const [selectedSection, setSelectedSection] = useState<string | null>(null);
+  const [selectedSection, setSelectedSection] = useState<Section | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: notebook } = useQuery<NotebookType>({
@@ -109,6 +116,8 @@ export default function Notebook() {
   const handleSend = async () => {
     if (!input.trim() || !Array.isArray(sections)) return;
 
+    console.log("🚀 User sending message:", input);
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -119,9 +128,12 @@ export default function Notebook() {
     setInput("");
 
     const context = sections.map(s => ({ title: s.title, content: s.content }));
+    console.log("📝 Context sections:", context);
     
     try {
+      console.log("🤖 Requesting AI generation...");
       const result = await generateAI.mutateAsync({ prompt: userPrompt, context });
+      console.log("✅ AI Response:", result);
       
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -135,20 +147,24 @@ export default function Notebook() {
         result.content.toLowerCase().includes(s.title.toLowerCase())
       ) || sections[0];
 
+      console.log("🎯 Target section for update:", targetSection?.title);
+
       if (targetSection) {
         const newContent = targetSection.content 
           ? `${targetSection.content}\n\n${result.content}` 
           : result.content;
         
+        console.log("💾 Updating section with new content...");
         await updateSection.mutateAsync({ 
           sectionId: targetSection.id, 
           content: newContent 
         });
+        console.log("✅ Section updated successfully");
         
         queryClient.invalidateQueries({ queryKey: ["/api/notebooks", id, "sections"] });
       }
     } catch (error) {
-      console.error("AI generation error:", error);
+      console.error("❌ AI generation error:", error);
       const errorMessage: Message = {
         id: (Date.now() + 2).toString(),
         role: "assistant",
@@ -177,7 +193,7 @@ export default function Notebook() {
         </div>
 
         <ScrollArea className="flex-1 p-6">
-          <div className="max-w-3xl mx-auto space-y-4">
+          <div className="max-w-2xl mx-auto space-y-4">
             {messages.map((message) => (
               <div key={message.id} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                 {message.role === "assistant" && (
@@ -203,7 +219,7 @@ export default function Notebook() {
           </div>
         </ScrollArea>
 
-        <div className="border-t border-border p-4">
+        <div className="border-t border-border p-4 pb-6">
           <div className="flex gap-2">
             <Textarea
               value={input}
@@ -241,9 +257,9 @@ export default function Notebook() {
           {Array.isArray(sections) && sections.map((section, index) => (
             <button
               key={section.id}
-              onClick={() => setSelectedSection(section.id)}
+              onClick={() => setSelectedSection(section)}
               className={`w-full text-left p-3 rounded-md hover-elevate transition-all ${
-                selectedSection === section.id ? "bg-accent" : ""
+                selectedSection?.id === section.id ? "bg-accent" : ""
               }`}
               data-testid={`chapter-link-${section.title.toLowerCase()}`}
             >
@@ -258,6 +274,20 @@ export default function Notebook() {
             </button>
           ))}
         </div>
+
+        <Dialog open={!!selectedSection} onOpenChange={(open) => !open && setSelectedSection(null)}>
+          <DialogContent className="max-w-3xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>{selectedSection?.title}</DialogTitle>
+              <DialogDescription>Chapter content</DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[60vh] pr-4">
+              <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                {selectedSection?.content || "No content yet. Chat with the AI to add content to this chapter."}
+              </div>
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

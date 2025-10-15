@@ -7,13 +7,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/lib/protected-route";
 import Auth from "@/pages/Auth";
 import Home from "@/pages/Home";
 import Notebook from "@/pages/Notebook";
 import Templates from "@/pages/Templates";
+import Settings from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -23,6 +23,7 @@ function Router() {
       <ProtectedRoute path="/" component={Home} />
       <ProtectedRoute path="/notebook/:id" component={Notebook} />
       <ProtectedRoute path="/templates" component={Templates} />
+      <ProtectedRoute path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -47,14 +48,9 @@ function AppLayout() {
     <SidebarProvider style={style as React.CSSProperties}>
       <div className="flex h-screen w-full">
         <AppSidebar />
-        <div className="flex flex-col flex-1">
-          <header className="flex items-center justify-end p-4 border-b border-border">
-            <ThemeToggle />
-          </header>
-          <main className="flex-1 overflow-auto">
-            <Router />
-          </main>
-        </div>
+        <main className="flex-1 overflow-auto">
+          <Router />
+        </main>
       </div>
     </SidebarProvider>
   );
