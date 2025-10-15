@@ -41,12 +41,13 @@ export default function Notebook() {
     },
   });
 
-  const { data: sections = [] } = useQuery<Section[]>({
+  const { data: sections = [], isLoading: sectionsLoading } = useQuery<Section[]>({
     queryKey: ["/api/notebooks", id, "sections"],
     queryFn: async () => {
       const response = await fetch(`/api/notebooks/${id}/sections`);
       return response.json();
     },
+    enabled: !!id && id !== "undefined",
   });
 
   useEffect(() => {
@@ -106,7 +107,7 @@ export default function Notebook() {
   };
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !Array.isArray(sections)) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -157,7 +158,7 @@ export default function Notebook() {
     }
   };
 
-  if (!notebook) {
+  if (!notebook || !id || id === "undefined") {
     return <div className="p-12">Loading...</div>;
   }
 
@@ -237,7 +238,7 @@ export default function Notebook() {
           <h3 className="font-semibold text-sm text-foreground">Chapters</h3>
         </div>
         <div className="space-y-3">
-          {sections.map((section, index) => (
+          {Array.isArray(sections) && sections.map((section, index) => (
             <button
               key={section.id}
               onClick={() => setSelectedSection(section.id)}

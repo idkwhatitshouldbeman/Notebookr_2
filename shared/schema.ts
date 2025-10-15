@@ -44,6 +44,7 @@ export const sections = pgTable("sections", {
 
 export const insertNotebookSchema = createInsertSchema(notebooks).omit({
   id: true,
+  userId: true,
   createdAt: true,
   updatedAt: true,
 });

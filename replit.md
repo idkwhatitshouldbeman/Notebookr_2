@@ -2,11 +2,30 @@
 
 ## Overview
 
-EngiNote is a productivity-focused web application for creating and managing engineering notebooks with AI assistance. It enables engineers and technical professionals to create structured documentation including lab reports, design documents, and project logs with AI-powered content generation. The application features a warm, beige-themed interface inspired by Linear and Notion, prioritizing clarity and efficient information architecture for technical writing.
+EngiNote is a free AI-powered engineering notebook application that uses a conversational interface to help engineers write technical documentation. Users chat with AI, and it writes all the notebook content for them. The application features Replit Auth for secure user authentication and uses Replit AI Integrations for free AI content generation (billed to Replit credits, no API key needed).
 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+
+## Recent Changes (October 15, 2025)
+
+### Authentication System
+- Implemented Replit Auth with OpenID Connect for user authentication
+- Users can sign in via Google, GitHub, or email/password
+- Landing page for logged-out users with feature highlights
+- Protected routes with user ownership validation
+
+### Chat-Based UI Redesign
+- Replaced textarea-based editing with conversational chat interface
+- AI writes all notebook content based on user conversation
+- Chapters panel on right side for viewing AI-generated sections
+- Real-time content updates with automatic section assignment
+
+### Database Schema Updates
+- Added users and sessions tables for authentication
+- Added userId foreign key to notebooks for user ownership
+- All routes now enforce user-scoped data access for security
 
 ## System Architecture
 
@@ -28,12 +47,14 @@ Preferred communication style: Simple, everyday language.
 - Responsive design with mobile-first approach
 
 **Key Features:**
+- User authentication with Replit Auth (Google, GitHub, email/password)
+- Chat-based interface where AI writes all notebook content
+- Conversational AI understands context and updates appropriate sections
 - Notebook creation and management with emoji support
-- Section-based content organization with drag-and-drop ordering (via orderIndex)
-- AI-powered content generation panel with context-aware suggestions
+- Chapters navigation panel for viewing AI-generated content
 - Template system for common engineering document types (Lab Reports, Design Documents, Project Logs, etc.)
-- Real-time auto-save functionality
-- Export capabilities for documentation
+- Real-time content updates with automatic cache invalidation
+- Secure user-scoped data access with ownership validation
 
 ### Backend Architecture
 
@@ -46,21 +67,29 @@ Preferred communication style: Simple, everyday language.
 
 **API Design:**
 - RESTful API structure with resource-based endpoints
-- Endpoints for notebooks: GET /api/notebooks, GET /api/notebooks/:id, POST /api/notebooks, PATCH /api/notebooks/:id, DELETE /api/notebooks/:id
-- Endpoints for sections: GET /api/notebooks/:id/sections, POST /api/notebooks/:id/sections, PATCH /api/sections/:id, DELETE /api/sections/:id
-- AI generation endpoint: POST /api/ai/generate with prompt and context support
+- Authentication endpoints: GET /api/auth/user, GET /api/login, GET /api/callback, GET /api/logout
+- Notebooks endpoints (protected): GET /api/notebooks, POST /api/notebooks, GET /api/notebooks/:id, PATCH /api/notebooks/:id, DELETE /api/notebooks/:id
+- Sections endpoints (protected): GET /api/notebooks/:id/sections, POST /api/sections, PATCH /api/sections/:id, DELETE /api/sections/:id
+- AI generation endpoint (protected): POST /api/ai/generate with prompt and context support
+- All protected routes use isAuthenticated middleware and validate user ownership
 - Request validation using Zod schemas with drizzle-zod integration
 
 **Data Models:**
-- **Notebooks:** id, title, emoji, createdAt, updatedAt
+- **Users:** id, email, firstName, lastName, profileImageUrl, createdAt, updatedAt
+- **Sessions:** sid, sess (jsonb), expire (for PostgreSQL session storage)
+- **Notebooks:** id, userId (foreign key with cascade delete), title, emoji, createdAt, updatedAt
 - **Sections:** id, notebookId (foreign key with cascade delete), title, content, orderIndex (for ordering)
 - Schema-first approach with Drizzle ORM and automatic type inference
+- insertNotebookSchema omits id, userId, createdAt, updatedAt (userId added by server from auth)
 
 **Development Approach:**
-- In-memory storage implementation (MemStorage) for development with interface-based design allowing easy migration to database
+- PostgreSQL database with Drizzle ORM for persistent storage
+- Replit Auth with passport.js for authentication and session management
+- PostgreSQL session storage using connect-pg-simple
 - Hot module replacement in development via Vite middleware integration
 - Custom logging middleware for API request tracking
 - Error handling middleware for consistent error responses
+- User ownership validation on all protected routes
 
 ### External Dependencies
 
