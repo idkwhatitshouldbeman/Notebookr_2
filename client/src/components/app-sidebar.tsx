@@ -13,14 +13,16 @@ import {
 import { FileText, Home, Settings, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
-
-const privatePages = [
-  { id: 1, title: "Heat Transfer Lab", emoji: "🔥" },
-  { id: 2, title: "Circuit Design", emoji: "⚡" },
-  { id: 3, title: "Fluid Dynamics", emoji: "💧" },
-];
+import { useQuery } from "@tanstack/react-query";
+import type { Notebook } from "@shared/schema";
 
 export function AppSidebar() {
+  const { data: notebooks = [] } = useQuery<Notebook[]>({
+    queryKey: ["/api/notebooks"],
+  });
+
+  const privatePages = notebooks.slice(0, 10);
+
   return (
     <Sidebar>
       <SidebarHeader className="p-4 space-y-4">
@@ -57,23 +59,25 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Private</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {privatePages.map((page) => (
-                <SidebarMenuItem key={page.id}>
-                  <SidebarMenuButton asChild>
-                    <Link href={`/notebook/${page.id}`} data-testid={`link-notebook-${page.id}`}>
-                      <span className="text-base">{page.emoji}</span>
-                      <span className="truncate">{page.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {privatePages.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Private</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {privatePages.map((page) => (
+                  <SidebarMenuItem key={page.id}>
+                    <SidebarMenuButton asChild>
+                      <Link href={`/notebook/${page.id}`} data-testid={`link-notebook-${page.id}`}>
+                        <span className="text-base">{page.emoji}</span>
+                        <span className="truncate">{page.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="p-4">

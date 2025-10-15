@@ -4,26 +4,62 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, Check, X, RotateCcw } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import type { Section } from "@shared/schema";
 
 interface AIPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  sections: Section[];
+  activeSectionId: string | null;
+  onAccept: (content: string) => void;
 }
 
-export function AIPanel({ isOpen, onClose }: AIPanelProps) {
+export function AIPanel({ isOpen, onClose, sections, activeSectionId, onAccept }: AIPanelProps) {
   const [prompt, setPrompt] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
   const [generatedContent, setGeneratedContent] = useState("");
 
+  const generateMutation = useMutation({
+    mutationFn: async (data: { prompt: string; context: Array<{ title: string; content: string }> }) => {
+      const response = await fetch("/api/ai/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setGeneratedContent(data.content);
+    },
+  });
+
   const handleGenerate = () => {
-    setIsGenerating(true);
-    setTimeout(() => {
-      setGeneratedContent("Based on the experimental setup, the primary objective is to analyze the thermal efficiency of the heat exchanger under varying flow rates. This investigation aims to establish a correlation between Reynolds number and heat transfer coefficient...");
-      setIsGenerating(false);
-    }, 2000);
+    // Build context from sections that have content
+    const context = sections
+      .filter(s => s.content)
+      .map(s => ({ title: s.title, content: s.content }));
+    
+    generateMutation.mutate({ prompt, context });
+  };
+
+  const handleRegenerate = () => {
+    handleGenerate();
+  };
+
+  const handleAccept = () => {
+    onAccept(generatedContent);
+    setGeneratedContent("");
+    setPrompt("");
+  };
+
+  const handleDiscard = () => {
+    setGeneratedContent("");
   };
 
   if (!isOpen) return null;
+
+  const sectionsWithContent = sections.filter(s => s.content);
+  const activeSection = sections.find(s => s.id === activeSectionId);
 
   return (
     <div className="fixed inset-y-0 right-0 w-96 bg-card border-l border-card-border shadow-xl z-50 flex flex-col">
@@ -38,21 +74,30 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
       </div>
 
       <div className="flex-1 overflow-auto p-4 space-y-4">
+        {activeSection && (
+          <div>
+            <label className="text-sm font-medium mb-2 block text-foreground">
+              Generating for
+            </label>
+            <Badge variant="secondary">{activeSection.title}</Badge>
+          </div>
+        )}
+
         <div>
           <label className="text-sm font-medium mb-2 block text-foreground">
             Context Awareness
           </label>
           <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary" className="gap-1">
-              <Check className="h-3 w-3" />
-              Objectives
-            </Badge>
-            <Badge variant="secondary" className="gap-1">
-              <Check className="h-3 w-3" />
-              Methods
-            </Badge>
-            <Badge variant="outline">Observations</Badge>
-            <Badge variant="outline">Conclusions</Badge>
+            {sections.map((section) => (
+              <Badge 
+                key={section.id}
+                variant={section.content ? "secondary" : "outline"}
+                className={section.content ? "gap-1" : ""}
+              >
+                {section.content && <Check className="h-3 w-3" />}
+                {section.title}
+              </Badge>
+            ))}
           </div>
         </div>
 
@@ -61,7 +106,7 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
             What would you like to generate?
           </label>
           <Textarea
-            placeholder="E.g., 'Write an introduction for the observations section based on the experimental setup...'"
+            placeholder="E.g., 'Write an introduction based on the experimental setup...'"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             className="min-h-[100px]"
@@ -72,23 +117,30 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
         <Button 
           className="w-full gap-2" 
           onClick={handleGenerate}
-          disabled={isGenerating || !prompt}
+          disabled={generateMutation.isPending || !prompt}
           data-testid="button-generate"
         >
           <Sparkles className="h-4 w-4" />
-          {isGenerating ? "Generating..." : "Generate"}
+          {generateMutation.isPending ? "Generating..." : "Generate"}
         </Button>
 
         {generatedContent && (
           <Card className="p-4">
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-medium text-foreground">Generated Content</h4>
-              <Button variant="ghost" size="icon" className="h-8 w-8" data-testid="button-regenerate">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8"
+                onClick={handleRegenerate}
+                disabled={generateMutation.isPending}
+                data-testid="button-regenerate"
+              >
                 <RotateCcw className="h-4 w-4" />
               </Button>
             </div>
             
-            {isGenerating ? (
+            {generateMutation.isPending ? (
               <div className="space-y-2">
                 <div className="h-4 bg-muted rounded animate-pulse" />
                 <div className="h-4 bg-muted rounded animate-pulse w-5/6" />
@@ -96,15 +148,15 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
               </div>
             ) : (
               <>
-                <p className="text-sm text-foreground leading-relaxed mb-4">
+                <p className="text-sm text-foreground leading-relaxed mb-4 whitespace-pre-wrap">
                   {generatedContent}
                 </p>
                 <div className="flex gap-2">
-                  <Button size="sm" className="flex-1 gap-2" data-testid="button-accept">
+                  <Button size="sm" className="flex-1 gap-2" onClick={handleAccept} data-testid="button-accept">
                     <Check className="h-4 w-4" />
                     Accept
                   </Button>
-                  <Button variant="outline" size="sm" className="flex-1 gap-2" data-testid="button-discard">
+                  <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={handleDiscard} data-testid="button-discard">
                     <X className="h-4 w-4" />
                     Discard
                   </Button>

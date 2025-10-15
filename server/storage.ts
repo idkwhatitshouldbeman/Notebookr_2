@@ -39,8 +39,9 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const now = new Date();
     const notebook: Notebook = { 
-      ...insertNotebook, 
       id,
+      title: insertNotebook.title,
+      emoji: insertNotebook.emoji ?? "📝",
       createdAt: now,
       updatedAt: now,
     };
@@ -77,7 +78,13 @@ export class MemStorage implements IStorage {
 
   async createSection(insertSection: InsertSection): Promise<Section> {
     const id = randomUUID();
-    const section: Section = { ...insertSection, id };
+    const section: Section = { 
+      id,
+      notebookId: insertSection.notebookId,
+      title: insertSection.title,
+      content: insertSection.content ?? "",
+      orderIndex: insertSection.orderIndex,
+    };
     this.sections.set(id, section);
     return section;
   }

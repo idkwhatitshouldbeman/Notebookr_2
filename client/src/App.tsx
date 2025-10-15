@@ -8,7 +8,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import Home from "@/pages/Home";
-import Editor from "@/pages/Editor";
+import Notebook from "@/pages/Notebook";
 import Templates from "@/pages/Templates";
 import SignIn from "@/pages/SignIn";
 import NotFound from "@/pages/not-found";
@@ -18,7 +18,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/signin" component={SignIn} />
-      <Route path="/editor" component={Editor} />
+      <Route path="/notebook/:id" component={Notebook} />
       <Route path="/templates" component={Templates} />
       <Route component={NotFound} />
     </Switch>
