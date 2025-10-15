@@ -16,19 +16,19 @@
 
 ## Color Palette
 
-### Light Mode
-- **Background Layers**: 0 0% 100% (primary), 0 0% 98% (secondary), 0 0% 95% (tertiary)
-- **Text Colors**: 220 13% 13% (primary), 220 9% 46% (secondary), 220 9% 66% (tertiary)
-- **Brand Primary**: 221 83% 53% (confident blue for AI actions)
-- **Brand Accent**: 142 71% 45% (success green for completed generations)
-- **Borders**: 220 13% 91% (subtle definition)
+### Light Mode (Beige/Warm Theme)
+- **Background Layers**: 40 30% 96% (soft beige), 38 25% 92% (warm cream), 36 20% 88% (deeper beige)
+- **Text Colors**: 30 15% 25% (warm dark brown), 35 10% 45% (medium warm gray), 35 8% 60% (soft warm gray)
+- **Brand Primary**: 25 70% 55% (warm terracotta/coral for AI actions)
+- **Brand Accent**: 45 65% 50% (golden amber for highlights)
+- **Borders**: 38 20% 85% (subtle warm border)
 
-### Dark Mode
-- **Background Layers**: 222 47% 11% (primary), 217 33% 17% (secondary), 215 28% 21% (tertiary)
-- **Text Colors**: 210 40% 98% (primary), 217 20% 71% (secondary), 215 16% 56% (tertiary)
-- **Brand Primary**: 217 91% 60% (vibrant blue for AI actions)
-- **Brand Accent**: 142 76% 36% (muted green for completed generations)
-- **Borders**: 217 33% 25% (defined boundaries)
+### Dark Mode (Warm Dark)
+- **Background Layers**: 30 15% 12% (warm charcoal), 28 12% 18% (warm dark gray), 26 10% 22% (lighter warm gray)
+- **Text Colors**: 40 25% 95% (warm off-white), 38 15% 75% (warm light gray), 36 12% 65% (medium warm gray)
+- **Brand Primary**: 25 65% 60% (soft coral for AI actions)
+- **Brand Accent**: 45 60% 55% (muted gold for highlights)
+- **Borders**: 28 12% 28% (subtle warm border)
 
 ### Semantic Colors
 - **Warning**: 38 92% 50% (AI processing state)
