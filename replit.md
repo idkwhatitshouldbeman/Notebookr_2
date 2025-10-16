@@ -8,9 +8,20 @@ EngiNote is a free AI-powered engineering notebook application that uses a conve
 
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (October 15, 2025)
+## Recent Changes (October 16, 2025)
 
-### Standalone Authentication System (Latest)
+### Advanced AI System with Three-Phase Workflow (Latest)
+- **OpenRouter Multi-Model Fallback:** Free AI using 9 OpenRouter models (meta-llama/llama-3.3-70b, nvidia/llama-3.1-nemotron-70b, deepseek/deepseek-chat, etc.) across 3 API keys with graceful degradation to OpenAI
+- **Three-Phase AI Workflow:** Autonomous Plan → Execute → Review phases that run automatically in single request
+  - Phase 1 (Planning): AI analyzes instruction and creates comprehensive document plan
+  - Phase 2 (Execution): AI executes tasks, creates/updates sections based on plan
+  - Phase 3 (Review): AI reviews work quality and suggests improvements
+- **AI Memory System:** Hidden notebook.aiMemory field stores TODO list, goals, and document plan for context persistence
+- **Progress Indicators:** Real-time UI shows current AI phase (📋 Plan, ⚡ Execute, 🔍 Review) and confidence level (high/medium/low)
+- **Version History:** Automatic version snapshots saved before each section update with restore functionality
+- **Version API Endpoints:** GET /api/sections/:id/versions, POST /api/sections/:id/restore/:versionId
+
+### Standalone Authentication System (October 15, 2025)
 - Replaced Replit Auth with standalone username/password authentication
 - Users create accounts with username, password, and optional profile info
 - Secure password hashing using scrypt
@@ -19,16 +30,18 @@ Preferred communication style: Simple, everyday language.
 - Password hashes are sanitized from all API responses for security
 - Logout button in sidebar for easy sign out
 
-### Chat-Based UI Redesign
+### Chat-Based UI Redesign (October 15, 2025)
 - Replaced textarea-based editing with conversational chat interface
 - AI writes all notebook content based on user conversation
 - Chapters panel on right side for viewing AI-generated sections
 - Real-time content updates with automatic section assignment
 
-### Database Schema Updates
+### Database Schema Updates (October 15, 2025)
 - Added username and password fields to users table for standalone auth
 - Added users and sessions tables for authentication
 - Added userId foreign key to notebooks for user ownership
+- Added aiMemory (jsonb) and documentType fields to notebooks for AI context
+- Added section_versions table for version history (sectionId, content, createdAt)
 - All routes now enforce user-scoped data access for security
 
 ## System Architecture
@@ -84,8 +97,9 @@ Preferred communication style: Simple, everyday language.
 **Data Models:**
 - **Users:** id, username (unique), password (hashed), email, firstName, lastName, profileImageUrl, createdAt, updatedAt
 - **Sessions:** sid, sess (jsonb), expire (for PostgreSQL session storage)
-- **Notebooks:** id, userId (foreign key with cascade delete), title, emoji, createdAt, updatedAt
-- **Sections:** id, notebookId (foreign key with cascade delete), title, content, orderIndex (for ordering)
+- **Notebooks:** id, userId (foreign key with cascade delete), title, emoji, documentType, aiMemory (jsonb for storing TODO/plan), createdAt, updatedAt
+- **Sections:** id, notebookId (foreign key with cascade delete), title, content, orderIndex (text field for ordering)
+- **Section Versions:** id, sectionId (foreign key with cascade delete), content, createdAt (automatic version snapshots)
 - Schema-first approach with Drizzle ORM and automatic type inference
 - insertNotebookSchema omits id, userId, createdAt, updatedAt (userId added by server from auth)
 - Password field is omitted from all API responses for security
@@ -103,10 +117,20 @@ Preferred communication style: Simple, everyday language.
 ### External Dependencies
 
 **AI Services:**
-- **OpenAI API:** Used for AI-powered content generation
+- **OpenRouter Multi-Model Fallback System:** Primary AI provider using free models
+  - 9 text models: meta-llama/llama-3.3-70b, nvidia/llama-3.1-nemotron-70b, deepseek/deepseek-chat, qwen/qwen-2.5-72b, google/gemini-2.0-flash, anthropic/claude-3.5-sonnet, x-ai/grok-2-1212, microsoft/phi-4, cohere/command-r-plus
+  - 4 vision models: meta-llama/llama-3.2-90b-vision, google/gemini-2.0-flash, anthropic/claude-3.5-sonnet, x-ai/grok-2-vision-1212
+  - 3 API keys (OPENROUTER_KEY1, KEY2, KEY3) with automatic rotation for load balancing
+  - Graceful degradation to OpenAI if all OpenRouter combinations fail
+- **OpenAI API:** Fallback provider for content generation
   - Configurable via AI_INTEGRATIONS_OPENAI_API_KEY environment variable
   - Supports custom base URL via AI_INTEGRATIONS_OPENAI_BASE_URL for alternative providers
-  - Context-aware generation using notebook sections as reference material
+- **Three-Phase AI Workflow:**
+  - Phase 1 (Planning): Analyzes instruction, creates comprehensive document plan stored in aiMemory
+  - Phase 2 (Execution): Executes plan tasks, creates/updates sections with content
+  - Phase 3 (Review): Reviews work quality, identifies gaps, suggests improvements
+  - All phases run automatically in single API call via recursive phase progression
+  - Context-aware generation using notebook sections and aiMemory as reference
 
 **Database:**
 - **PostgreSQL:** Primary data store (configured via Drizzle)
