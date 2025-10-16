@@ -14,7 +14,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Send, Sparkles, FileText, User, Bot } from "lucide-react";
+import { Send, Sparkles, FileText, User, Bot, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { queryClient } from "@/lib/queryClient";
 import type { Notebook as NotebookType, Section } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,6 +40,8 @@ export default function Notebook() {
   const [input, setInput] = useState("");
   const [selectedSection, setSelectedSection] = useState<Section | null>(null);
   const [editingSections, setEditingSections] = useState<Set<string>>(new Set());
+  const [aiPhase, setAiPhase] = useState<"plan" | "execute" | "review" | null>(null);
+  const [aiConfidence, setAiConfidence] = useState<"high" | "medium" | "low" | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: notebook } = useQuery<NotebookType>({
@@ -98,7 +101,7 @@ export default function Notebook() {
   });
 
   const generateAI = useMutation({
-    mutationFn: async (data: { instruction: string; sections: Array<{ id: string; title: string; content: string }> }) => {
+    mutationFn: async (data: { instruction: string; notebookId: string; sections: Array<{ id: string; title: string; content: string }> }) => {
       const response = await fetch("/api/ai/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -109,7 +112,7 @@ export default function Notebook() {
   });
 
   const createSection = useMutation({
-    mutationFn: async (data: { notebookId: string; title: string; content: string; orderIndex: number }) => {
+    mutationFn: async (data: { notebookId: string; title: string; content: string; orderIndex: string }) => {
       const response = await fetch("/api/sections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -151,14 +154,27 @@ export default function Notebook() {
     
     try {
       console.log("🤖 AI is editing notebook...");
-      const result = await generateAI.mutateAsync({ instruction, sections: currentSections });
+      setAiPhase("plan"); // Initial phase
+      const result = await generateAI.mutateAsync({ instruction, notebookId: id!, sections: currentSections });
       console.log("✅ AI Response:", result);
       
-      // Add AI message to chat
+      // Update phase and confidence
+      setAiPhase(result.phase || null);
+      setAiConfidence(result.confidence || null);
+      
+      // Clear phase indicator after 3 seconds
+      setTimeout(() => {
+        setAiPhase(null);
+        setAiConfidence(null);
+      }, 3000);
+      
+      // Add AI message to chat with phase info
+      const phaseEmoji = result.phase === "plan" ? "📋" : result.phase === "execute" ? "⚡" : "🔍";
+      const confidenceText = result.confidence ? ` (${result.confidence} confidence)` : "";
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: result.message || "I've updated the notebook sections.",
+        content: `${phaseEmoji} ${result.message || "I've updated the notebook sections."}${confidenceText}`,
       };
       setMessages(prev => [...prev, aiMessage]);
 
@@ -204,7 +220,7 @@ export default function Notebook() {
                 notebookId: id!,
                 title: action.sectionId,
                 content: action.content,
-                orderIndex: sections.length + createCount
+                orderIndex: String(sections.length + createCount)
               });
               createCount++;
               console.log(`✅ Created new section: ${action.sectionId}`);
@@ -248,6 +264,18 @@ export default function Notebook() {
 
         <ScrollArea className="flex-1 p-6">
           <div className="max-w-2xl mx-auto space-y-4">
+            {aiPhase && (
+              <div className="mb-4 p-3 rounded-lg bg-accent/50 border border-accent flex items-center gap-3">
+                {aiPhase === "plan" && <><Loader2 className="h-4 w-4 animate-spin" /> <span className="text-sm">Planning document structure...</span></>}
+                {aiPhase === "execute" && <><Loader2 className="h-4 w-4 animate-spin" /> <span className="text-sm">Executing tasks...</span></>}
+                {aiPhase === "review" && <><Loader2 className="h-4 w-4 animate-spin" /> <span className="text-sm">Reviewing work...</span></>}
+                {aiConfidence && (
+                  <Badge variant={aiConfidence === "high" ? "default" : aiConfidence === "medium" ? "secondary" : "outline"} className="ml-auto">
+                    {aiConfidence} confidence
+                  </Badge>
+                )}
+              </div>
+            )}
             {messages.map((message) => (
               <div key={message.id} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                 {message.role === "assistant" && (

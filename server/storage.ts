@@ -1,4 +1,4 @@
-import { type Notebook, type InsertNotebook, type Section, type InsertSection, type User, type InsertUser, notebooks, sections, users } from "@shared/schema";
+import { type Notebook, type InsertNotebook, type Section, type InsertSection, type SectionVersion, type User, type InsertUser, notebooks, sections, sectionVersions, users } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc } from "drizzle-orm";
 import session from "express-session";
@@ -21,6 +21,7 @@ export interface IStorage {
   getNotebook(id: string): Promise<Notebook | undefined>;
   createNotebook(notebook: InsertNotebook & { userId: string }): Promise<Notebook>;
   updateNotebook(id: string, notebook: Partial<InsertNotebook>): Promise<Notebook | undefined>;
+  updateNotebookAiMemory(id: string, aiMemory: any): Promise<Notebook | undefined>;
   deleteNotebook(id: string): Promise<void>;
   
   // Sections
@@ -29,6 +30,10 @@ export interface IStorage {
   createSection(section: InsertSection): Promise<Section>;
   updateSection(id: string, content: string): Promise<Section | undefined>;
   deleteSection(id: string): Promise<void>;
+  
+  // Section Versions
+  getSectionVersions(sectionId: string): Promise<SectionVersion[]>;
+  restoreSectionVersion(sectionId: string, versionId: string): Promise<Section | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -77,6 +82,14 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  async updateNotebookAiMemory(id: string, aiMemory: any): Promise<Notebook | undefined> {
+    const result = await db.update(notebooks)
+      .set({ aiMemory, updatedAt: new Date() })
+      .where(eq(notebooks.id, id))
+      .returning();
+    return result[0];
+  }
+
   async deleteNotebook(id: string): Promise<void> {
     await db.delete(notebooks).where(eq(notebooks.id, id));
   }
@@ -100,6 +113,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateSection(id: string, content: string): Promise<Section | undefined> {
+    // Get current section to save its content as a version
+    const currentSection = await this.getSection(id);
+    if (currentSection && currentSection.content) {
+      // Save current content as a version before updating
+      await db.insert(sectionVersions).values({
+        sectionId: id,
+        content: currentSection.content,
+      });
+    }
+    
     const result = await db.update(sections)
       .set({ content })
       .where(eq(sections.id, id))
@@ -116,6 +139,28 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSection(id: string): Promise<void> {
     await db.delete(sections).where(eq(sections.id, id));
+  }
+
+  // Section Versions
+  async getSectionVersions(sectionId: string): Promise<SectionVersion[]> {
+    return await db.select()
+      .from(sectionVersions)
+      .where(eq(sectionVersions.sectionId, sectionId))
+      .orderBy(desc(sectionVersions.createdAt));
+  }
+
+  async restoreSectionVersion(sectionId: string, versionId: string): Promise<Section | undefined> {
+    // Get the version to restore
+    const [version] = await db.select()
+      .from(sectionVersions)
+      .where(eq(sectionVersions.id, versionId));
+    
+    if (!version) {
+      return undefined;
+    }
+
+    // Update the section with the version's content (this will also save current content as a new version)
+    return await this.updateSection(sectionId, version.content);
   }
 }
 
