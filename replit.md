@@ -1,8 +1,8 @@
-# EngiNote - AI-Powered Engineering Notebooks
+# Notebookr - AI-Powered Engineering Notebooks
 
 ## Overview
 
-EngiNote is a free AI-powered engineering notebook application that uses a conversational interface to help engineers write technical documentation. Users chat with AI, and it writes all the notebook content for them. The application features Replit Auth for secure user authentication and uses Replit AI Integrations for free AI content generation (billed to Replit credits, no API key needed).
+Notebookr is a free AI-powered engineering notebook application that uses a conversational interface to help engineers write technical documentation. Users chat with AI, and it writes all the notebook content for them. The application features Replit Auth for secure user authentication and uses Replit AI Integrations for free AI content generation (billed to Replit credits, no API key needed).
 
 ## User Preferences
 

@@ -1,43 +1,17 @@
 import { Card } from "@/components/ui/card";
-import { FileText, Plus, Clock } from "lucide-react";
+import { FileText, Plus, Clock, MoreVertical, Trash2 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
 import type { Notebook } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
-
-const templates = [
-  { 
-    name: "Lab Report", 
-    icon: "🧪",
-    sections: [
-      { title: "Objectives", orderIndex: "0" },
-      { title: "Methods", orderIndex: "1" },
-      { title: "Observations", orderIndex: "2" },
-      { title: "Conclusions", orderIndex: "3" },
-    ]
-  },
-  { 
-    name: "Design Document", 
-    icon: "📐",
-    sections: [
-      { title: "Overview", orderIndex: "0" },
-      { title: "Requirements", orderIndex: "1" },
-      { title: "Design", orderIndex: "2" },
-      { title: "Implementation", orderIndex: "3" },
-    ]
-  },
-  { 
-    name: "Project Log", 
-    icon: "📝",
-    sections: [
-      { title: "Summary", orderIndex: "0" },
-      { title: "Progress", orderIndex: "1" },
-      { title: "Challenges", orderIndex: "2" },
-      { title: "Next Steps", orderIndex: "3" },
-    ]
-  },
-];
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 
 export default function Home() {
   const [, setLocation] = useLocation();
@@ -77,8 +51,24 @@ export default function Home() {
     },
   });
 
+  const deleteNotebook = useMutation({
+    mutationFn: async (id: string) => {
+      await fetch(`/api/notebooks/${id}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notebooks"] });
+    },
+  });
+
   const handleCreateNotebook = (title: string, emoji: string, sections: Array<{ title: string; orderIndex: string }>) => {
     createNotebook.mutate({ title, emoji, sections });
+  };
+
+  const handleDeleteNotebook = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    deleteNotebook.mutate(id);
   };
 
   const recentNotebooks = notebooks.slice(0, 5);
@@ -100,11 +90,35 @@ export default function Home() {
             {recentNotebooks.map((notebook) => (
               <Card 
                 key={notebook.id}
-                className="p-6 hover-elevate cursor-pointer transition-all"
+                className="p-6 hover-elevate cursor-pointer transition-all relative group"
                 onClick={() => setLocation(`/notebook/${notebook.id}`)}
                 data-testid={`card-notebook-${notebook.id}`}
               >
-                <div className="text-3xl mb-3">{notebook.emoji}</div>
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        data-testid={`button-menu-${notebook.id}`}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="text-destructive"
+                        onClick={(e) => handleDeleteNotebook(e, notebook.id)}
+                        data-testid={`menu-item-delete-${notebook.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <FileText className="h-8 w-8 text-muted-foreground mb-3" />
                 <h3 className="font-medium text-foreground mb-1">{notebook.title}</h3>
                 <p className="text-sm text-muted-foreground">
                   {formatDistanceToNow(new Date(notebook.updatedAt), { addSuffix: true })}
@@ -114,7 +128,7 @@ export default function Home() {
             
             <Card 
               className="p-6 hover-elevate cursor-pointer transition-all border-dashed flex flex-col items-center justify-center min-h-[140px]"
-              onClick={() => handleCreateNotebook("Untitled Notebook", "📝", [
+              onClick={() => handleCreateNotebook("Untitled Notebook", "", [
                 { title: "Section 1", orderIndex: "0" },
               ])}
               data-testid="card-new-notebook"
@@ -122,27 +136,6 @@ export default function Home() {
               <Plus className="h-8 w-8 text-muted-foreground mb-2" />
               <p className="text-sm text-muted-foreground">New notebook</p>
             </Card>
-          </div>
-        </div>
-
-        <div>
-          <h2 className="text-sm font-medium text-muted-foreground mb-6 flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            Start with a template
-          </h2>
-          
-          <div className="space-y-2">
-            {templates.map((template) => (
-              <button
-                key={template.name}
-                className="w-full text-left px-4 py-3 rounded-lg hover-elevate transition-all flex items-center gap-3"
-                onClick={() => handleCreateNotebook(template.name, template.icon, template.sections)}
-                data-testid={`button-template-${template.name.toLowerCase().replace(/\s+/g, '-')}`}
-              >
-                <span className="text-xl">{template.icon}</span>
-                <span className="text-foreground">{template.name}</span>
-              </button>
-            ))}
           </div>
         </div>
       </div>

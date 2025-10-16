@@ -26,12 +26,12 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-4 space-y-4">
-        <div className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2 hover-elevate active-elevate-2 rounded-lg p-2 -m-2" data-testid="link-home-logo">
           <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
-            <FileText className="h-4 w-4 text-primary-foreground" />
+            <span className="font-bold text-sm text-primary-foreground">N</span>
           </div>
-          <span className="font-semibold text-sidebar-foreground">EngiNote</span>
-        </div>
+          <span className="font-semibold text-sidebar-foreground">Notebookr</span>
+        </Link>
         
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -68,7 +68,7 @@ export function AppSidebar() {
                   <SidebarMenuItem key={page.id}>
                     <SidebarMenuButton asChild>
                       <Link href={`/notebook/${page.id}`} data-testid={`link-notebook-${page.id}`}>
-                        <span className="text-base">{page.emoji}</span>
+                        <FileText className="h-4 w-4" />
                         <span className="truncate">{page.title}</span>
                       </Link>
                     </SidebarMenuButton>

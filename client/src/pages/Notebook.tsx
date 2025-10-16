@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Send, Sparkles, FileText, User, Bot, Loader2 } from "lucide-react";
+import { Send, Sparkles, FileText, User, Bot, Loader2, Maximize2, Minimize2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { queryClient } from "@/lib/queryClient";
 import type { Notebook as NotebookType, Section } from "@shared/schema";
@@ -41,8 +41,9 @@ export default function Notebook() {
   const [selectedSection, setSelectedSection] = useState<Section | null>(null);
   const [editingSections, setEditingSections] = useState<Set<string>>(new Set());
   const [aiPhase, setAiPhase] = useState<"plan" | "execute" | "review" | null>(null);
-  const [aiConfidence, setAiConfidence] = useState<"high" | "medium" | "low" | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sectionRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   const { data: notebook } = useQuery<NotebookType>({
     queryKey: ["/api/notebooks", id],
@@ -70,6 +71,10 @@ export default function Notebook() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const scrollToSection = (sectionId: string) => {
+    sectionRefs.current[sectionId]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const updateTitle = useMutation({
     mutationFn: async (newTitle: string) => {
@@ -158,23 +163,25 @@ export default function Notebook() {
       const result = await generateAI.mutateAsync({ instruction, notebookId: id!, sections: currentSections });
       console.log("✅ AI Response:", result);
       
-      // Update phase and confidence
+      // Update phase
       setAiPhase(result.phase || null);
-      setAiConfidence(result.confidence || null);
       
       // Clear phase indicator after 3 seconds
       setTimeout(() => {
         setAiPhase(null);
-        setAiConfidence(null);
       }, 3000);
       
-      // Add AI message to chat with phase info
-      const phaseEmoji = result.phase === "plan" ? "📋" : result.phase === "execute" ? "⚡" : "🔍";
-      const confidenceText = result.confidence ? ` (${result.confidence} confidence)` : "";
+      // Auto-generate title if it's still "Untitled Notebook" and AI suggested a title
+      if (notebook?.title === "Untitled Notebook" && result.suggestedTitle) {
+        setTitle(result.suggestedTitle);
+        updateTitle.mutate(result.suggestedTitle);
+      }
+
+      // Add AI message to chat
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: `${phaseEmoji} ${result.message || "I've updated the notebook sections."}${confidenceText}`,
+        content: result.message || "I've updated the notebook sections.",
       };
       setMessages(prev => [...prev, aiMessage]);
 
@@ -250,30 +257,25 @@ export default function Notebook() {
 
   return (
     <div className="h-screen flex bg-background">
-      <div className="flex-1 flex flex-col overflow-hidden border-r border-border">
-        <div className="border-b border-border p-4 flex items-center gap-3">
-          <span className="text-3xl">{notebook.emoji}</span>
-          <Input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={handleTitleBlur}
-            className="text-xl font-semibold border-none shadow-none focus-visible:ring-0 px-0 flex-1 bg-transparent"
-            data-testid="input-notebook-title"
-          />
-        </div>
+      {!isExpanded ? (
+        <div className="flex-1 flex flex-col overflow-hidden border-r border-border">
+          <div className="border-b border-border p-4 flex items-center gap-3">
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={handleTitleBlur}
+              className="text-xl font-semibold border-none shadow-none focus-visible:ring-0 px-0 flex-1 bg-transparent"
+              data-testid="input-notebook-title"
+            />
+          </div>
 
-        <ScrollArea className="flex-1 p-6">
+          <ScrollArea className="flex-1 p-6">
           <div className="max-w-2xl mx-auto space-y-4">
             {aiPhase && (
               <div className="mb-4 p-3 rounded-lg bg-accent/50 border border-accent flex items-center gap-3">
                 {aiPhase === "plan" && <><Loader2 className="h-4 w-4 animate-spin" /> <span className="text-sm">Planning document structure...</span></>}
                 {aiPhase === "execute" && <><Loader2 className="h-4 w-4 animate-spin" /> <span className="text-sm">Executing tasks...</span></>}
                 {aiPhase === "review" && <><Loader2 className="h-4 w-4 animate-spin" /> <span className="text-sm">Reviewing work...</span></>}
-                {aiConfidence && (
-                  <Badge variant={aiConfidence === "high" ? "default" : aiConfidence === "medium" ? "secondary" : "outline"} className="ml-auto">
-                    {aiConfidence} confidence
-                  </Badge>
-                )}
               </div>
             )}
             {messages.map((message) => (
@@ -328,18 +330,58 @@ export default function Notebook() {
             </Button>
           </div>
         </div>
-      </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col overflow-hidden border-r border-border">
+          <div className="border-b border-border p-4 flex items-center gap-3">
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={handleTitleBlur}
+              className="text-xl font-semibold border-none shadow-none focus-visible:ring-0 px-0 flex-1 bg-transparent"
+              data-testid="input-notebook-title-expanded"
+            />
+          </div>
+          <ScrollArea className="flex-1 p-8">
+            <div className="max-w-4xl mx-auto space-y-8">
+              {Array.isArray(sections) && sections.map((section, index) => (
+                <div
+                  key={section.id}
+                  ref={(el) => (sectionRefs.current[section.id] = el)}
+                  className="scroll-mt-4"
+                >
+                  <h2 className="text-2xl font-bold mb-4">{index + 1}. {section.title}</h2>
+                  <div className="text-base leading-relaxed whitespace-pre-wrap">
+                    {section.content || "No content yet."}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
 
       <div className="w-80 p-4 bg-card overflow-auto">
-        <div className="flex items-center gap-2 mb-4">
-          <FileText className="h-4 w-4 text-muted-foreground" />
-          <h3 className="font-semibold text-sm text-foreground">Chapters</h3>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-semibold text-sm text-foreground">Chapters</h3>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setIsExpanded(!isExpanded)}
+            data-testid="button-expand-chapters"
+          >
+            {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
         </div>
         <div className="space-y-3">
           {Array.isArray(sections) && sections.map((section, index) => (
             <button
               key={section.id}
-              onClick={() => setSelectedSection(section)}
+              onClick={() => isExpanded ? scrollToSection(section.id) : setSelectedSection(section)}
               className={`w-full text-left p-3 rounded-md hover-elevate transition-all relative ${
                 selectedSection?.id === section.id ? "bg-accent" : ""
               } ${

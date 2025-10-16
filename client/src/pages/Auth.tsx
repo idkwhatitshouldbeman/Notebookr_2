@@ -68,7 +68,7 @@ export default function Auth() {
       <div className="flex items-center justify-center p-8">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center space-y-2">
-            <h1 className="text-4xl font-bold">Welcome to EngiNote</h1>
+            <h1 className="text-4xl font-bold">Welcome to Notebookr</h1>
             <p className="text-muted-foreground">AI-powered engineering notebooks</p>
           </div>
 
