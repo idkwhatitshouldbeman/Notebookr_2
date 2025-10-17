@@ -42,6 +42,8 @@ export default function Notebook() {
   const [editingSections, setEditingSections] = useState<Set<string>>(new Set());
   const [aiPhase, setAiPhase] = useState<"plan" | "execute" | "review" | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [currentPlan, setCurrentPlan] = useState<any>(null);
+  const [recentlyUpdatedSections, setRecentlyUpdatedSections] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
@@ -106,7 +108,12 @@ export default function Notebook() {
   });
 
   const generateAI = useMutation({
-    mutationFn: async (data: { instruction: string; notebookId: string; sections: Array<{ id: string; title: string; content: string }> }) => {
+    mutationFn: async (data: { 
+      instruction: string; 
+      notebookId: string; 
+      sections: Array<{ id: string; title: string; content: string }>;
+      aiMemory?: any;
+    }) => {
       const response = await fetch("/api/ai/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -159,87 +166,137 @@ export default function Notebook() {
     
     try {
       console.log("🤖 AI is editing notebook...");
-      setAiPhase("plan"); // Initial phase
-      const result = await generateAI.mutateAsync({ instruction, notebookId: id!, sections: currentSections });
-      console.log("✅ AI Response:", result);
       
-      // Update phase
-      setAiPhase(result.phase || null);
+      // Keep calling AI until complete
+      let aiMemory: any = undefined;
+      let isComplete = false;
+      let iterationCount = 0;
+      const maxIterations = 50; // Safety limit
       
-      // Clear phase indicator after 3 seconds
-      setTimeout(() => {
-        setAiPhase(null);
-      }, 3000);
-      
-      // Auto-generate title if it's still "Untitled Notebook" and AI suggested a title
-      if (notebook?.title === "Untitled Notebook" && result.suggestedTitle) {
-        setTitle(result.suggestedTitle);
-        updateTitle.mutate(result.suggestedTitle);
-      }
+      while (!isComplete && iterationCount < maxIterations) {
+        iterationCount++;
+        
+        const result = await generateAI.mutateAsync({ 
+          instruction: aiMemory ? "" : instruction, // Only send instruction on first call
+          notebookId: id!, 
+          sections: currentSections,
+          aiMemory
+        });
+        console.log(`✅ AI Response (iteration ${iterationCount}):`, result);
+        
+        // Update phase and plan
+        setAiPhase(result.phase || null);
+        if (result.plan) {
+          setCurrentPlan(result.plan);
+        }
+        
+        // Auto-generate title if it's still "Untitled Notebook" and AI suggested a title
+        if (notebook?.title === "Untitled Notebook" && result.suggestedTitle) {
+          setTitle(result.suggestedTitle);
+          updateTitle.mutate(result.suggestedTitle);
+        }
 
-      // Add AI message to chat
+        // Apply AI actions automatically (Cursor-style)
+        if (result.actions && Array.isArray(result.actions)) {
+          let createCount = 0;
+          for (const action of result.actions) {
+            // Validate action has required fields
+            if (!action.type || !action.sectionId || action.content === undefined) {
+              console.warn(`⚠️ Skipping invalid action:`, action);
+              continue;
+            }
+
+            console.log(`🔧 Applying action: ${action.type} on ${action.sectionId}`);
+            
+            if (action.type === "update") {
+              // Find the section and update it
+              const targetSection = sections.find(s => s.id === action.sectionId);
+              if (targetSection) {
+                setEditingSections(prev => new Set(prev).add(targetSection.id));
+                setRecentlyUpdatedSections(prev => new Set(prev).add(targetSection.id));
+                try {
+                  await updateSection.mutateAsync({ 
+                    sectionId: action.sectionId, 
+                    content: action.content 
+                  });
+                  console.log(`✅ Updated section: ${targetSection.title}`);
+                  
+                  // Clear the highlight after 2 seconds
+                  setTimeout(() => {
+                    setRecentlyUpdatedSections(prev => {
+                      const next = new Set(prev);
+                      next.delete(targetSection.id);
+                      return next;
+                    });
+                  }, 2000);
+                } catch (error) {
+                  console.error(`❌ Failed to update section ${targetSection.title}:`, error);
+                } finally {
+                  setEditingSections(prev => {
+                    const next = new Set(prev);
+                    next.delete(targetSection.id);
+                    return next;
+                  });
+                }
+              } else {
+                console.warn(`⚠️ Section ${action.sectionId} not found for update`);
+              }
+            } else if (action.type === "create") {
+              // Create new section with unique orderIndex
+              try {
+                const newSection = await createSection.mutateAsync({
+                  notebookId: id!,
+                  title: action.sectionId,
+                  content: action.content,
+                  orderIndex: String(sections.length + createCount)
+                });
+                createCount++;
+                console.log(`✅ Created new section: ${action.sectionId}`);
+                
+                // Highlight new section
+                if (newSection?.id) {
+                  setRecentlyUpdatedSections(prev => new Set(prev).add(newSection.id));
+                  setTimeout(() => {
+                    setRecentlyUpdatedSections(prev => {
+                      const next = new Set(prev);
+                      next.delete(newSection.id);
+                      return next;
+                    });
+                  }, 2000);
+                }
+              } catch (error) {
+                console.error(`❌ Failed to create section ${action.sectionId}:`, error);
+              }
+            }
+          }
+          
+          // Refresh sections after all updates
+          queryClient.invalidateQueries({ queryKey: ["/api/notebooks", id, "sections"] });
+        }
+        
+        // Check if work is complete
+        isComplete = result.isComplete || false;
+        aiMemory = result.aiMemory;
+        
+        // If not complete, continue looping
+        if (!isComplete && result.shouldContinue) {
+          console.log("🔄 AI workflow continuing...");
+          await new Promise(resolve => setTimeout(resolve, 500)); // Small delay between calls
+        } else if (!result.shouldContinue) {
+          break;
+        }
+      }
+      
+      // Clear phase indicator
+      setAiPhase(null);
+      
+      // Add final AI message to chat
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: result.message || "I've updated the notebook sections.",
+        content: isComplete ? "Document complete" : (iterationCount >= maxIterations ? "Document generation complete (reached iteration limit)" : "I've updated the notebook sections."),
       };
       setMessages(prev => [...prev, aiMessage]);
-
-      // Apply AI actions automatically (Cursor-style)
-      if (result.actions && Array.isArray(result.actions)) {
-        let createCount = 0;
-        for (const action of result.actions) {
-          // Validate action has required fields
-          if (!action.type || !action.sectionId || action.content === undefined) {
-            console.warn(`⚠️ Skipping invalid action:`, action);
-            continue;
-          }
-
-          console.log(`🔧 Applying action: ${action.type} on ${action.sectionId}`);
-          
-          if (action.type === "update") {
-            // Find the section and update it
-            const targetSection = sections.find(s => s.id === action.sectionId);
-            if (targetSection) {
-              setEditingSections(prev => new Set(prev).add(targetSection.id));
-              try {
-                await updateSection.mutateAsync({ 
-                  sectionId: action.sectionId, 
-                  content: action.content 
-                });
-                console.log(`✅ Updated section: ${targetSection.title}`);
-              } catch (error) {
-                console.error(`❌ Failed to update section ${targetSection.title}:`, error);
-              } finally {
-                setEditingSections(prev => {
-                  const next = new Set(prev);
-                  next.delete(targetSection.id);
-                  return next;
-                });
-              }
-            } else {
-              console.warn(`⚠️ Section ${action.sectionId} not found for update`);
-            }
-          } else if (action.type === "create") {
-            // Create new section with unique orderIndex
-            try {
-              await createSection.mutateAsync({
-                notebookId: id!,
-                title: action.sectionId,
-                content: action.content,
-                orderIndex: String(sections.length + createCount)
-              });
-              createCount++;
-              console.log(`✅ Created new section: ${action.sectionId}`);
-            } catch (error) {
-              console.error(`❌ Failed to create section ${action.sectionId}:`, error);
-            }
-          }
-        }
-        
-        // Refresh sections after all updates
-        queryClient.invalidateQueries({ queryKey: ["/api/notebooks", id, "sections"] });
-      }
     } catch (error) {
       console.error("❌ AI error:", error);
       const errorMessage: Message = {
@@ -362,6 +419,35 @@ export default function Notebook() {
       )}
 
       <div className="w-80 p-4 bg-card overflow-auto">
+        {currentPlan && currentPlan.tasks && currentPlan.tasks.length > 0 && (
+          <div className="mb-6">
+            <h3 className="font-semibold text-sm text-foreground mb-3 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              AI Task List
+            </h3>
+            <div className="space-y-2">
+              {currentPlan.tasks.map((task: any, index: number) => (
+                <div
+                  key={index}
+                  className={`text-xs p-2 rounded-md ${
+                    task.done 
+                      ? "bg-primary/10 text-primary line-through" 
+                      : "bg-accent/50 text-foreground"
+                  }`}
+                  data-testid={`task-item-${index}`}
+                >
+                  <div className="font-medium">{task.action}: {task.section}</div>
+                  {task.description && (
+                    <div className="text-muted-foreground mt-1 line-clamp-2">
+                      {task.description}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
@@ -386,6 +472,8 @@ export default function Notebook() {
                 selectedSection?.id === section.id ? "bg-accent" : ""
               } ${
                 editingSections.has(section.id) ? "ring-2 ring-primary animate-pulse" : ""
+              } ${
+                recentlyUpdatedSections.has(section.id) ? "bg-primary/20 ring-1 ring-primary/50" : ""
               }`}
               data-testid={`chapter-link-${section.title.toLowerCase()}`}
             >
