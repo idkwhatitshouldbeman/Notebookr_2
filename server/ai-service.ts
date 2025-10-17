@@ -137,8 +137,8 @@ export async function threePhaseGeneration(
 ): Promise<ThreePhaseResponse> {
   const { instruction, sections, aiMemory, notebookId, iterationCount = 0 } = request;
   
-  // Safety limit: prevent infinite loops
-  const MAX_ITERATIONS = 10;
+  // Safety limit: prevent infinite loops (high limit - let AI decide when done)
+  const MAX_ITERATIONS = 100;
   if (iterationCount >= MAX_ITERATIONS) {
     console.log(`⚠️ Reached maximum iteration limit (${MAX_ITERATIONS}), stopping.`);
     return {
@@ -146,7 +146,9 @@ export async function threePhaseGeneration(
       actions: [],
       message: "Document generation complete (reached iteration limit)",
       aiMemory: { ...aiMemory, currentPhase: "complete" },
-      confidence: "medium"
+      confidence: "medium",
+      shouldContinue: false,
+      isComplete: true
     };
   }
 
@@ -154,26 +156,37 @@ export async function threePhaseGeneration(
   if (!aiMemory || !aiMemory.plan) {
     console.log("📋 Phase 1: Planning document structure...");
     
-    const planningPrompt = `You are an AI document architect. Analyze this instruction and create a comprehensive, thorough plan.
+    const planningPrompt = `You are an AI document architect. Analyze this instruction and extract key variables, then create a comprehensive plan.
 
 INSTRUCTION: ${instruction}
 
 CURRENT SECTIONS: ${sections.map(s => s.title).join(", ") || "None"}
 
-IMPORTANT: Unless the user specifies otherwise, prefer creating LONGER, MORE DETAILED documents. Aim for comprehensive coverage with multiple sections and substantial content in each.
-
-Create a detailed plan in JSON format:
+Extract variables and create a plan in JSON format:
 {
-  "suggestedTitle": "clear, concise title for the document (3-8 words)",
-  "documentType": "research paper" | "lab report" | "design document" | "project log" | "essay" | "report",
-  "requiredSections": ["Abstract", "Introduction", "Methods", "Results", "Discussion", "Conclusion", ...],
+  "variables": {
+    "topic": "the main subject (REQUIRED)",
+    "targetLength": "extract from instruction: '5 pages', '20 pages', 'short', 'detailed', etc. If not specified, use 'comprehensive'",
+    "estimatedSections": "calculate based on length: 5 pages=5-8 sections, 10 pages=10-15, 20 pages=15-20, comprehensive=8-12",
+    "documentType": "research paper | lab report | design document | essay | report | guide",
+    "tone": "academic | casual | technical | professional (use 'academic' if unsure)",
+    "focusAreas": ["key topics extracted from instruction"],
+    "hasQuestions": false
+  },
+  "questions": [],
+  "suggestedTitle": "clear, concise title",
+  "requiredSections": ["section titles based on topic and type"],
   "tasks": [
-    { "action": "create" | "update", "section": "section name", "description": "detailed description of substantial content to write", "done": false }
+    { "action": "create" | "update", "section": "section name", "description": "what to write", "done": false }
   ],
-  "overallGoal": "clear statement of the document's purpose and scope"
+  "overallGoal": "clear purpose"
 }
 
-Create AT LEAST 5-8 sections for a thorough document unless the user requests something shorter.`;
+IMPORTANT: 
+- Extract page/length info from instruction (e.g., "20 page" → targetLength: "20 pages", estimatedSections: 15-20)
+- If unsure about anything, set hasQuestions: true and add to questions array
+- Create tasks for ALL sections, aiming for comprehensive coverage
+- Default to creating LONGER, DETAILED documents unless specified otherwise`;
 
     const planResult = await generateWithFallback({
       messages: [
@@ -216,6 +229,22 @@ Create AT LEAST 5-8 sections for a thorough document unless the user requests so
       }
     }
 
+    // Check if AI has questions for the user
+    if (plan.variables?.hasQuestions && plan.questions?.length > 0) {
+      const updatedMemory = { plan, currentPhase: "awaiting_answers" };
+      return {
+        phase: "plan",
+        actions: [],
+        message: plan.questions.join(" "),
+        aiMemory: updatedMemory,
+        confidence: "high",
+        suggestedTitle: plan.suggestedTitle,
+        plan: plan,
+        shouldContinue: false, // Wait for user to answer
+        isComplete: false
+      };
+    }
+
     const updatedMemory = { plan, currentPhase: "execute" };
 
     // Return the plan without executing - let frontend call again
@@ -228,6 +257,53 @@ Create AT LEAST 5-8 sections for a thorough document unless the user requests so
       suggestedTitle: plan.suggestedTitle,
       plan: plan,
       shouldContinue: true, // Frontend should call again to execute
+      isComplete: false
+    };
+  }
+
+  // Handle user answering questions
+  if (aiMemory.currentPhase === "awaiting_answers") {
+    console.log("💬 User answered questions, updating plan...");
+    
+    const plan = aiMemory.plan;
+    const updatePrompt = `The user was asked questions and responded with: "${instruction}"
+
+CURRENT PLAN VARIABLES:
+${JSON.stringify(plan.variables, null, 2)}
+
+Update the variables with the user's response and set hasQuestions to false. Return the updated plan in the same JSON format.`;
+
+    const updateResult = await generateWithFallback({
+      messages: [
+        { role: "system", content: "You are a document planning expert. Update the plan variables based on user input. You MUST respond with ONLY valid JSON." },
+        { role: "user", content: updatePrompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 1500,
+    });
+
+    let updatedPlan;
+    try {
+      updatedPlan = JSON.parse(updateResult.content);
+    } catch {
+      const jsonMatch = updateResult.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (jsonMatch) {
+        updatedPlan = JSON.parse(jsonMatch[1]);
+      } else {
+        updatedPlan = { ...plan, variables: { ...plan.variables, hasQuestions: false } };
+      }
+    }
+
+    const updatedMemory = { plan: updatedPlan, currentPhase: "execute" };
+    return {
+      phase: "plan",
+      actions: [],
+      message: "Got it! Continuing with document generation...",
+      aiMemory: updatedMemory,
+      confidence: "high",
+      suggestedTitle: updatedPlan.suggestedTitle,
+      plan: updatedPlan,
+      shouldContinue: true,
       isComplete: false
     };
   }
@@ -250,9 +326,16 @@ Create AT LEAST 5-8 sections for a thorough document unless the user requests so
       });
     }
 
+    const vars = plan.variables || {};
     const executionPrompt = `You are executing a document creation plan. Write COMPREHENSIVE, DETAILED, and SUBSTANTIAL content.
 
-DOCUMENT TYPE: ${plan.documentType}
+DOCUMENT CONTEXT:
+- Topic: ${vars.topic || 'Not specified'}
+- Target Length: ${vars.targetLength || 'comprehensive'}
+- Document Type: ${plan.documentType || vars.documentType}
+- Tone: ${vars.tone || 'academic'}
+- Focus Areas: ${vars.focusAreas?.join(', ') || 'general coverage'}
+
 OVERALL GOAL: ${plan.overallGoal}
 
 CURRENT SECTIONS:
@@ -261,10 +344,12 @@ ${sections.map(s => `## ${s.title}\n${s.content || '(empty)'}`).join('\n\n')}
 NEXT TASK: ${nextTask.action} "${nextTask.section}" - ${nextTask.description}
 
 IMPORTANT GUIDELINES:
-- Write LONG, THOROUGH content (multiple paragraphs per section minimum)
+- Write LONG, THOROUGH content matching the target length (${vars.targetLength})
+- Use ${vars.tone} tone throughout
 - Include specific details, examples, and comprehensive explanations
 - Make content professional and well-structured
-- Aim for at least 150-300 words per section unless it's a brief title/abstract
+- Aim for 300-600 words per section for comprehensive documents
+- For "20 page" documents, write extensive, detailed content (500+ words per section)
 
 Respond with JSON:
 {
