@@ -43,6 +43,7 @@ export default function Notebook() {
   const [aiPhase, setAiPhase] = useState<"plan" | "execute" | "review" | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<any>(null);
+  const [persistedAiMemory, setPersistedAiMemory] = useState<any>(null);
   const [recentlyUpdatedSections, setRecentlyUpdatedSections] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
@@ -161,7 +162,7 @@ export default function Notebook() {
       console.log("🤖 AI is editing notebook...");
       
       // Keep calling AI until complete
-      let aiMemory: any = undefined;
+      let aiMemory: any = persistedAiMemory || undefined; // Use persisted memory if available
       let isComplete = false;
       let iterationCount = 0;
       const maxIterations = 50; // Frontend safety limit (backend has its own at 10)
@@ -180,7 +181,7 @@ export default function Notebook() {
         console.log(`📝 Fresh sections (iteration ${iterationCount}):`, currentSections);
         
         const result = await generateAI.mutateAsync({ 
-          instruction: aiMemory ? "" : instruction, // Only send instruction on first call
+          instruction: iterationCount === 1 ? instruction : "", // Send instruction on first iteration only
           notebookId: id!, 
           sections: currentSections,
           aiMemory
@@ -289,6 +290,8 @@ export default function Notebook() {
         
         if (!result.shouldContinue) {
           console.warn("⚠️ AI paused (may have questions or need user input)");
+          // Persist AI memory so user's answer can resume the flow
+          setPersistedAiMemory(result.aiMemory || aiMemory);
           // Use the AI's actual message (may contain questions)
           const pauseMessage: Message = {
             id: (Date.now() + 1).toString(),
@@ -305,8 +308,9 @@ export default function Notebook() {
         await new Promise(resolve => setTimeout(resolve, 500)); // Small delay between calls
       }
       
-      // Clear phase indicator
+      // Clear phase indicator and persisted memory on completion
       setAiPhase(null);
+      setPersistedAiMemory(null); // Clear memory to avoid stale context
       
       // Determine completion message
       let completionMessage = "Document complete! ✨";
