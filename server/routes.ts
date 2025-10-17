@@ -149,6 +149,7 @@ export function registerRoutes(app: Express): Server {
         title: z.string(),
         content: z.string(),
       })),
+      aiMemory: z.any().optional(),
     });
 
     const result = schema.safeParse(req.body);
@@ -156,7 +157,7 @@ export function registerRoutes(app: Express): Server {
       return res.status(400).json({ error: result.error });
     }
 
-    const { instruction, notebookId, sections } = result.data;
+    const { instruction, notebookId, sections, aiMemory } = result.data;
     const userId = req.user.id;
 
     try {
@@ -166,12 +167,12 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ error: "Forbidden" });
       }
 
-      // Use three-phase generation
+      // Use three-phase generation - prefer passed aiMemory over stored
       const threePhaseResult = await import("./ai-service").then(m => 
         m.threePhaseGeneration({
           instruction,
           sections,
-          aiMemory: notebook.aiMemory,
+          aiMemory: aiMemory || notebook.aiMemory,
           notebookId
         })
       );
@@ -179,12 +180,17 @@ export function registerRoutes(app: Express): Server {
       // Update notebook AI memory
       await storage.updateNotebookAiMemory(notebookId, threePhaseResult.aiMemory);
 
-      // Return response with phase info and confidence
+      // Return full response with all fields the frontend needs
       res.json({
         actions: threePhaseResult.actions,
         message: threePhaseResult.message,
         phase: threePhaseResult.phase,
-        confidence: threePhaseResult.confidence
+        confidence: threePhaseResult.confidence,
+        plan: threePhaseResult.plan,
+        shouldContinue: threePhaseResult.shouldContinue,
+        isComplete: threePhaseResult.isComplete,
+        aiMemory: threePhaseResult.aiMemory,
+        suggestedTitle: threePhaseResult.suggestedTitle
       });
     } catch (error) {
       console.error("AI generation error:", error);
