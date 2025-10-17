@@ -127,6 +127,9 @@ interface ThreePhaseResponse {
   aiMemory: any;
   confidence: "high" | "medium" | "low";
   suggestedTitle?: string;
+  isComplete?: boolean;
+  shouldContinue?: boolean;
+  plan?: any;
 }
 
 export async function threePhaseGeneration(
@@ -215,17 +218,17 @@ Create AT LEAST 5-8 sections for a thorough document unless the user requests so
 
     const updatedMemory = { plan, currentPhase: "execute" };
 
-    // After planning, immediately proceed to execution
-    const executionResult = await threePhaseGeneration({
-      ...request,
-      aiMemory: updatedMemory,
-      iterationCount: iterationCount + 1
-    });
-    
-    // Pass along the suggested title from the plan
+    // Return the plan without executing - let frontend call again
     return {
-      ...executionResult,
-      suggestedTitle: plan.suggestedTitle
+      phase: "plan",
+      actions: [],
+      message: "Document plan created",
+      aiMemory: updatedMemory,
+      confidence: "high",
+      suggestedTitle: plan.suggestedTitle,
+      plan: plan,
+      shouldContinue: true, // Frontend should call again to execute
+      isComplete: false
     };
   }
 
@@ -314,33 +317,24 @@ Respond with JSON:
       plan: { ...plan, tasks: updatedTasks }
     };
 
-    // Check if there are more tasks to execute
-    const remainingTasks = updatedTasks.filter((t: any) => !t.done);
-    
-    if (remainingTasks.length > 0) {
-      // Still have tasks to do, continue execution phase
-      console.log(`🔄 ${remainingTasks.length} tasks remaining. Continuing execution...`);
-      
-      const nextExecution = await threePhaseGeneration({
-        ...request,
-        aiMemory: updatedMemory,
-        iterationCount: iterationCount + 1
-      });
-      
-      // Combine actions from this execution and the next
-      return {
-        ...nextExecution,
-        actions: [...(execResponse.actions || []), ...(nextExecution.actions || [])]
-      };
+    // Check if all tasks are done
+    const allTasksDone = updatedTasks.every((t: any) => t.done);
+
+    // If all tasks done, move to review phase
+    if (allTasksDone) {
+      updatedMemory.currentPhase = "review";
     }
 
-    // All tasks done! Proceed to review
-    console.log("✅ All tasks completed. Proceeding to review phase...");
-    return await threePhaseGeneration({
-      ...request,
-      aiMemory: { ...updatedMemory, currentPhase: "review" },
-      iterationCount: iterationCount + 1
-    });
+    return {
+      phase: "execute",
+      actions: execResponse.actions || [],
+      message: execResponse.message || "Executed task",
+      aiMemory: updatedMemory,
+      confidence: "high",
+      isComplete: false, // Not complete until review approves
+      shouldContinue: true, // Frontend should keep calling
+      plan: plan // Include plan for frontend
+    };
   }
 
   // Phase 3: Review
@@ -402,21 +396,25 @@ Review the document and respond with JSON:
     }
   }
 
-  // If work is incomplete, automatically loop back to execute more tasks
+  // If work is incomplete, add new tasks and switch to execute phase
   if (!review.isComplete && review.nextTasks && review.nextTasks.length > 0) {
-    console.log(`🔄 Review found improvements needed. Looping back to execution... (iteration ${iterationCount + 1})`);
+    console.log(`🔄 Review found improvements needed. Adding ${review.nextTasks.length} new tasks...`);
     const updatedMemory = { 
       ...aiMemory, 
       currentPhase: "execute", 
       plan: { ...aiMemory.plan, tasks: [...aiMemory.plan.tasks, ...review.nextTasks] }
     };
     
-    // Recursively call to continue execution
-    return await threePhaseGeneration({
-      ...request,
+    return {
+      phase: "review",
+      actions: [],
+      message: review.message || "Needs improvement",
       aiMemory: updatedMemory,
-      iterationCount: iterationCount + 1
-    });
+      confidence: review.quality === "excellent" ? "high" : review.quality === "good" ? "medium" : "low",
+      plan: updatedMemory.plan,
+      shouldContinue: true,
+      isComplete: false
+    };
   }
 
   // Work is complete
@@ -426,6 +424,9 @@ Review the document and respond with JSON:
     actions: [],
     message: review.message || "Document complete",
     aiMemory: { ...aiMemory, currentPhase: "complete" },
-    confidence: review.quality === "excellent" ? "high" : review.quality === "good" ? "medium" : "low"
+    confidence: review.quality === "excellent" ? "high" : review.quality === "good" ? "medium" : "low",
+    plan: aiMemory.plan,
+    shouldContinue: false,
+    isComplete: true
   };
 }
