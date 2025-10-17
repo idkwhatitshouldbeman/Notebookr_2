@@ -10,11 +10,31 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (October 17, 2025)
 
-### UX Enhancements (Latest)
-- **Processing Indicators:** Added elapsed time tracking to loading states
-  - Timer shows seconds elapsed during AI operations
-  - Warning appears after 30s to indicate slow service (not stuck)
-  - Helps users distinguish between processing and stuck states
+### Advanced UX Improvements (Latest)
+- **Full-Screen Document View:** Expanded view now takes over entire screen
+  - Hides chat completely for distraction-free reading
+  - Minimize button returns to chat view
+  - Chapters panel hidden when expanded
+- **Faster Processing Feedback:** Yellow warning appears after 10 seconds (was 30s)
+  - Helps users identify slow AI service sooner
+  - Timer shows elapsed seconds during all AI operations
+- **Special Instructions/Criteria Support:** AI extracts and applies special writing constraints
+  - Examples: "write as if Shakespeare was writing", "don't use the letter E", "use 'banana' often"
+  - New "criteria" variable in AI planning system
+  - Applied consistently throughout document generation
+- **Smart Progress Indicator:** Shows "4/12" completion badge next to expand button
+  - Only visible when Document Context accordion is collapsed
+  - Provides at-a-glance progress without opening accordion
+- **Live Section Completion Updates (Grok-style):**
+  - Chat shows real-time "Finished making: [section title]" messages
+  - Click to expand/collapse full section content
+  - Green checkmark avatar distinguishes from regular messages
+  - Updates as each section completes (not just at end)
+- **Enhanced Visual Separation:** Expanded view sections have subtle accent background
+  - Cards with borders and spacing for clear section boundaries
+  - Easy to see where one section ends and another begins
+
+### Earlier UX Enhancements (October 17, 2025)
 - **Dynamic Variables Accordion:** Document Context moved to collapsible accordion
   - Variables now fully dynamic - AI can add any fields
   - Uses Object.entries loop instead of hardcoded fields
@@ -26,12 +46,6 @@ Preferred communication style: Simple, everyday language.
   - Rename: Prompts for new title
   - Delete: Confirms before deletion
   - Matches home page pattern
-- **Smooth Expanding Chapters Panel:** 
-  - Chat always visible, chapters panel expands/contracts smoothly
-  - Normal width: 320px (w-80), Expanded: 60% of screen
-  - Transition animates over 500ms with ease-in-out
-  - Expanded view shows full section content inline (no truncation)
-  - Collapsed view shows 3-line preview, click opens dialog
 
 ### Variable-Based AI Planning System (October 17, 2025)
 - **One-Prompt Document Generation:** Users type one instruction (e.g., "give me a 20 page essay about bananas") and AI generates entire document
