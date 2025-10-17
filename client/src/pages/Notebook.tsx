@@ -478,31 +478,51 @@ export default function Notebook() {
       )}
 
       <div className="w-80 p-4 bg-card overflow-auto">
-        {currentPlan && currentPlan.tasks && currentPlan.tasks.length > 0 && (
+        {currentPlan && currentPlan.variables && (
           <div className="mb-6">
             <h3 className="font-semibold text-sm text-foreground mb-3 flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
-              AI Task List
+              Document Context
             </h3>
             <div className="space-y-2">
-              {currentPlan.tasks.map((task: any, index: number) => (
-                <div
-                  key={index}
-                  className={`text-xs p-2 rounded-md ${
-                    task.done 
-                      ? "bg-primary/10 text-primary line-through" 
-                      : "bg-accent/50 text-foreground"
-                  }`}
-                  data-testid={`task-item-${index}`}
-                >
-                  <div className="font-medium">{task.action}: {task.section}</div>
-                  {task.description && (
-                    <div className="text-muted-foreground mt-1 line-clamp-2">
-                      {task.description}
-                    </div>
-                  )}
+              {currentPlan.variables.topic && (
+                <div className="text-xs p-2 rounded-md bg-accent/50">
+                  <div className="font-medium text-foreground">Topic</div>
+                  <div className="text-muted-foreground mt-1">{currentPlan.variables.topic}</div>
                 </div>
-              ))}
+              )}
+              {currentPlan.variables.targetLength && (
+                <div className="text-xs p-2 rounded-md bg-accent/50">
+                  <div className="font-medium text-foreground">Length</div>
+                  <div className="text-muted-foreground mt-1">{currentPlan.variables.targetLength}</div>
+                </div>
+              )}
+              {currentPlan.variables.estimatedSections && (
+                <div className="text-xs p-2 rounded-md bg-accent/50">
+                  <div className="font-medium text-foreground">Sections</div>
+                  <div className="text-muted-foreground mt-1">{currentPlan.variables.estimatedSections}</div>
+                </div>
+              )}
+              {currentPlan.variables.tone && (
+                <div className="text-xs p-2 rounded-md bg-accent/50">
+                  <div className="font-medium text-foreground">Tone</div>
+                  <div className="text-muted-foreground mt-1 capitalize">{currentPlan.variables.tone}</div>
+                </div>
+              )}
+              {currentPlan.variables.focusAreas && currentPlan.variables.focusAreas.length > 0 && (
+                <div className="text-xs p-2 rounded-md bg-accent/50">
+                  <div className="font-medium text-foreground">Focus Areas</div>
+                  <div className="text-muted-foreground mt-1">{currentPlan.variables.focusAreas.join(', ')}</div>
+                </div>
+              )}
+              {currentPlan.tasks && (
+                <div className="text-xs p-2 rounded-md bg-primary/10">
+                  <div className="font-medium text-foreground">Progress</div>
+                  <div className="text-muted-foreground mt-1">
+                    {currentPlan.tasks.filter((t: any) => t.done).length} / {currentPlan.tasks.length} sections complete
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
