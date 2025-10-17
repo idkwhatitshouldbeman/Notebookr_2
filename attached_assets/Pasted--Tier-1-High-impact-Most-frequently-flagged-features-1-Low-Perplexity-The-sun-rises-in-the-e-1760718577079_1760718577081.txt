@@ -1,0 +1,203 @@
+🥇 Tier 1: High-impact / Most frequently flagged features
+1. Low Perplexity
+
+"The sun rises in the east and sets in the west."
+
+Predictable, statistically simple language across many tokens.
+
+Why it happens: AI chooses high-probability tokens to sound coherent.
+
+"example fixed" – "Despite the dawn’s routine path, it always felt new to her."
+
+2. Uniform Sentence Length (Low Burstiness)
+
+"He ran. He ate. He slept. He worked."
+
+Repeated sentence rhythm, little variation in length.
+
+Why it happens: AI aims for consistency and simplicity.
+
+"example fixed" – "After a frantic sprint, he collapsed into his chair, exhausted."
+
+3. N-gram Repetition / Repeated Phrases
+
+"It is important to note that... It is important to note that..."
+
+Identical phrase reused in multiple parts.
+
+Why it happens: AI relies on templates and pattern completion.
+
+"example fixed" – "Keep in mind that... Also worth considering is..."
+
+4. Lack of Specific or Personal Details
+
+"Some people enjoy art. It can be very meaningful."
+
+Generic, detached tone with no names, anecdotes, or specifics.
+
+Why it happens: AI avoids unverifiable or personal claims.
+
+"example fixed" – "I still remember the first time I saw Klimt’s ‘The Kiss’ in Vienna."
+
+5. Overuse of Em Dashes / Symmetrical Punctuation
+
+"She left — again — without saying a word."
+
+Balanced em dash clauses appear frequently.
+
+Why it happens: AI mimics structured writing styles too evenly.
+
+"example fixed" – "She left again. No note. Nothing."
+
+🥈 Tier 2: Strong signals, but context-dependent
+6. Overuse of Formal Transitions
+
+"Furthermore, it is essential to understand... Moreover, we must..."
+
+Overly formal flow connectors.
+
+Why it happens: AI draws from academic/encyclopedic training data.
+
+"example fixed" – "Also, here's why that matters..."
+
+7. Too-Perfect Grammar & Zero Typos
+
+"There are no errors in this document."
+
+Unnaturally clean text, no spelling slips or punctuation quirks.
+
+Why it happens: AI grammar correction is automatic.
+
+"example fixed" – "I wasn’t sure if it’d work—but hey, worth a shot."
+
+8. Overuse of Rare Words or Synonyms
+
+"He endeavored to ameliorate the situation despite the cacophony."
+
+Dense, overly ornate vocabulary in casual contexts.
+
+Why it happens: AI attempts to add variety, but overdoes it.
+
+"example fixed" – "He tried to calm things down, but the shouting drowned him out."
+
+9. Flat or Robotic Tone
+
+"This is a situation that may require evaluation."
+
+Vague, toneless, and overly cautious phrasing.
+
+Why it happens: AI hedges or defaults to neutrality.
+
+"example fixed" – "It’s tricky—but we might need to take a hard look at it."
+
+10. Lack of Emotional Variance or Subjectivity
+
+"The event was significant in many ways."
+
+Emotionless, detached summaries of potentially emotional topics.
+
+Why it happens: AI avoids personal judgments unless prompted.
+
+"example fixed" – "I cried when it ended. Didn’t expect to, but I did."
+
+🥉 Tier 3: Subtle patterns / Often combined with others
+11. Simplified Syntax / Repetitive Structure
+
+"He saw the bird. He took a photo. He walked away."
+
+Little sentence variation, no subordinate clauses.
+
+Why it happens: AI simplifies grammar to reduce hallucinations.
+
+"example fixed" – "After spotting the bird, he snapped a photo and kept walking."
+
+12. Logical Inconsistencies / Topic Jumps
+
+"Tom studies history. Also, AI is changing finance. Therefore, conclusions can be drawn."
+
+Abrupt or illogical transitions.
+
+Why it happens: AI struggles with long-form coherence.
+
+"example fixed" – "While Tom studies history, his focus includes the economic effects of AI."
+
+13. Adjective or Adverb Stacking
+
+"The really very extremely beautiful sunny yellow day..."
+
+Stacked descriptors without natural flow.
+
+Why it happens: AI inflates description to be “creative.”
+
+"example fixed" – "It was a strikingly sunny day—too bright to ignore."
+
+14. No Questions or Curiosity Language
+
+"The report explains everything clearly."
+
+AI rarely asks questions unless prompted.
+
+Why it happens: AI avoids ambiguity or exploration.
+
+"example fixed" – "But why did the numbers shift so suddenly?"
+
+15. Lack of Figurative Language / Humor / Slang
+
+"This approach is effective and efficient."
+
+Dry, corporate tone with no metaphor, sarcasm, or idiom.
+
+Why it happens: AI avoids figurative speech unless instructed.
+
+"example fixed" – "It worked like duct tape on a leaky pipe—messy but it held."
+
+16. Overuse of Hedges
+
+"It may possibly be considered that..."
+
+Stacking weak qualifiers unnecessarily.
+
+Why it happens: AI tries to sound neutral and non-committal.
+
+"example fixed" – "Maybe. But it sure felt like a yes to me."
+
+17. Generic Examples or Characters
+
+"John and Jane run a company. They want to improve operations."
+
+Characters and scenarios feel fake or lifeless.
+
+Why it happens: AI fills in placeholders with clichés.
+
+"example fixed" – "Emma’s cafe lost power during the lunch rush—again."
+
+🔍 BONUS: Invisible or detector-only markers
+18. Semantic Embedding Proximity
+
+"This text embeds near GPT-style outputs." (Not visible)
+
+Measured in vector space, it looks like typical AI content.
+
+Why it happens: Word choices and structure match AI-generated clusters.
+
+"example fixed" – Include uncommon topics, style shifts, or lived experiences.
+
+19. Token Bias / Watermarking (GPT-4 specific)
+
+"Invisible token patterns detected." (Not user-visible)
+
+Tokens follow slightly unnatural frequency patterns.
+
+Why it happens: Some LLMs embed watermarking for detection.
+
+"example fixed" – Manual rewrite with original sentence structures.
+
+20. Overlap With Known AI Content
+
+"In today’s fast-paced world, technology is evolving rapidly..."
+
+Matches high-frequency AI-generated opening lines.
+
+Why it happens: AI reuses popular text from training corpora.
+
+"example fixed" – "Half the apps on your phone didn’t exist five years ago. That’s wild."
