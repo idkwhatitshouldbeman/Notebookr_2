@@ -171,6 +171,7 @@ Extract variables and create a plan in JSON format:
     "documentType": "research paper | lab report | design document | essay | report | guide",
     "tone": "academic | casual | technical | professional (use 'academic' if unsure)",
     "focusAreas": ["key topics extracted from instruction"],
+    "criteria": "special instructions like 'write as if [person] was writing it', 'don't use [letter]', 'use [word] often', etc. Extract from instruction or leave empty if none",
     "hasQuestions": false
   },
   "questions": [],
@@ -335,6 +336,7 @@ DOCUMENT CONTEXT:
 - Document Type: ${plan.documentType || vars.documentType}
 - Tone: ${vars.tone || 'academic'}
 - Focus Areas: ${vars.focusAreas?.join(', ') || 'general coverage'}
+${vars.criteria ? `- Special Criteria: ${vars.criteria}` : ''}
 
 OVERALL GOAL: ${plan.overallGoal}
 

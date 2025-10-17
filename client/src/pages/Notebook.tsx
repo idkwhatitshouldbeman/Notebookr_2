@@ -35,8 +35,11 @@ import { useAuth } from "@/hooks/useAuth";
 
 interface Message {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
+  sectionTitle?: string;
+  isExpandable?: boolean;
+  expanded?: boolean;
 }
 
 export default function Notebook() {
@@ -60,6 +63,7 @@ export default function Notebook() {
   const [recentlyUpdatedSections, setRecentlyUpdatedSections] = useState<Set<string>>(new Set());
   const [processingStartTime, setProcessingStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [isContextOpen, setIsContextOpen] = useState("context");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
@@ -266,6 +270,17 @@ export default function Notebook() {
                   });
                   console.log(`✅ Updated section: ${targetSection.title}`);
                   
+                  // Add completion message to chat
+                  const completionMsg: Message = {
+                    id: `completion-${Date.now()}-${targetSection.id}`,
+                    role: "system",
+                    content: action.content,
+                    sectionTitle: targetSection.title,
+                    isExpandable: true,
+                    expanded: false
+                  };
+                  setMessages(prev => [...prev, completionMsg]);
+                  
                   // Clear the highlight after 2 seconds
                   setTimeout(() => {
                     setRecentlyUpdatedSections(prev => {
@@ -297,6 +312,17 @@ export default function Notebook() {
                 });
                 createCount++;
                 console.log(`✅ Created new section: ${action.sectionId}`);
+                
+                // Add completion message to chat
+                const completionMsg: Message = {
+                  id: `completion-${Date.now()}-${newSection.id}`,
+                  role: "system",
+                  content: action.content,
+                  sectionTitle: action.sectionId,
+                  isExpandable: true,
+                  expanded: false
+                };
+                setMessages(prev => [...prev, completionMsg]);
                 
                 // Highlight new section
                 if (newSection?.id) {
@@ -413,127 +439,205 @@ export default function Notebook() {
 
   return (
     <div className="h-screen flex bg-background">
-      <div className="flex-1 flex flex-col overflow-hidden border-r border-border">
-        <div className="border-b border-border p-4 flex items-center gap-3">
-          <Input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={handleTitleBlur}
-            className="text-xl font-semibold border-none shadow-none focus-visible:ring-0 px-0 flex-1 bg-transparent"
-            data-testid="input-notebook-title"
-          />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" data-testid="button-notebook-menu">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => {
-                const newTitle = prompt("Enter new title:", title);
-                if (newTitle && newTitle.trim()) {
-                  setTitle(newTitle);
-                  updateTitle.mutate(newTitle);
-                }
-              }}>
-                <Edit2 className="h-4 w-4 mr-2" />
-                Rename
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive"
-                onClick={() => {
-                  if (confirm("Are you sure you want to delete this notebook? This cannot be undone.")) {
-                    fetch(`/api/notebooks/${id}`, { method: "DELETE" })
-                      .then(() => window.location.href = "/")
-                      .catch(err => console.error("Delete failed:", err));
+      {!isExpanded && (
+        <div className="flex-1 flex flex-col overflow-hidden border-r border-border">
+          <div className="border-b border-border p-4 flex items-center gap-3">
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={handleTitleBlur}
+              className="text-xl font-semibold border-none shadow-none focus-visible:ring-0 px-0 flex-1 bg-transparent"
+              data-testid="input-notebook-title"
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" data-testid="button-notebook-menu">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  const newTitle = prompt("Enter new title:", title);
+                  if (newTitle && newTitle.trim()) {
+                    setTitle(newTitle);
+                    updateTitle.mutate(newTitle);
                   }
-                }}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+                }}>
+                  <Edit2 className="h-4 w-4 mr-2" />
+                  Rename
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => {
+                    if (confirm("Are you sure you want to delete this notebook? This cannot be undone.")) {
+                      fetch(`/api/notebooks/${id}`, { method: "DELETE" })
+                        .then(() => window.location.href = "/")
+                        .catch(err => console.error("Delete failed:", err));
+                    }
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
 
-        <ScrollArea className="flex-1 p-6">
-        <div className="max-w-2xl mx-auto space-y-4">
-          {aiPhase && (
-            <div className="mb-4 p-3 rounded-lg bg-accent/50 border border-accent flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">
-                  {aiPhase === "plan" && "Planning document structure..."}
-                  {aiPhase === "execute" && "Executing tasks..."}
-                  {aiPhase === "review" && "Reviewing work..."}
-                </span>
+          <ScrollArea className="flex-1 p-6">
+          <div className="max-w-2xl mx-auto space-y-4">
+            {aiPhase && (
+              <div className="mb-4 p-3 rounded-lg bg-accent/50 border border-accent flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">
+                    {aiPhase === "plan" && "Planning document structure..."}
+                    {aiPhase === "execute" && "Executing tasks..."}
+                    {aiPhase === "review" && "Reviewing work..."}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{elapsedTime}s</span>
+                  {elapsedTime > 10 && (
+                    <span className="text-xs text-yellow-600 dark:text-yellow-500">(AI service may be slow)</span>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">{elapsedTime}s</span>
-                {elapsedTime > 30 && (
-                  <span className="text-xs text-yellow-600 dark:text-yellow-500">(AI service may be slow)</span>
-                )}
-              </div>
-            </div>
-          )}
-          {messages.map((message) => (
-            <div key={message.id} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-              {message.role === "assistant" && (
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    <Bot className="h-4 w-4" />
-                  </AvatarFallback>
-                </Avatar>
-              )}
-              <Card className={`p-4 max-w-[80%] ${message.role === "user" ? "bg-primary text-primary-foreground" : ""}`}>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-              </Card>
-              {message.role === "user" && (
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback>
-                    <User className="h-4 w-4" />
-                  </AvatarFallback>
-                </Avatar>
-              )}
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
-
-      <div className="border-t border-border p-4 pb-6">
-        <div className="flex gap-2">
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
+            )}
+            {messages.map((message) => {
+              if (message.role === "system" && message.isExpandable) {
+                return (
+                  <div key={message.id} className="flex gap-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-green-600 text-white">
+                        <Sparkles className="h-4 w-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <Card 
+                      className="p-3 max-w-[80%] cursor-pointer hover-elevate"
+                      onClick={() => {
+                        setMessages(prev => prev.map(m => 
+                          m.id === message.id ? { ...m, expanded: !m.expanded } : m
+                        ));
+                      }}
+                      data-testid={`system-message-${message.sectionTitle}`}
+                    >
+                      <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
+                        <span>Finished making: {message.sectionTitle}</span>
+                      </div>
+                      {message.expanded && (
+                        <div className="mt-2 pt-2 border-t border-border text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground line-clamp-none">
+                          {message.content}
+                        </div>
+                      )}
+                      {!message.expanded && message.content && (
+                        <div className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                          {message.content}
+                        </div>
+                      )}
+                    </Card>
+                  </div>
+                );
               }
-            }}
-            placeholder="Instruction for the AI... (e.g., 'Add detailed objectives about measuring thermal conductivity')"
-            className="resize-none"
-            rows={3}
-            data-testid="textarea-chat-input"
-          />
-          <Button 
-            onClick={handleSend} 
-            disabled={!input.trim() || generateAI.isPending}
-            size="icon"
-            className="h-full"
-            data-testid="button-send"
-          >
-            {generateAI.isPending ? <Sparkles className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
-        </div>
-      </div>
-      </div>
+              
+              return (
+                <div key={message.id} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                  {message.role === "assistant" && (
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-primary text-primary-foreground">
+                        <Bot className="h-4 w-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                  <Card className={`p-4 max-w-[80%] ${message.role === "user" ? "bg-primary text-primary-foreground" : ""}`}>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                  </Card>
+                  {message.role === "user" && (
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback>
+                        <User className="h-4 w-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                </div>
+              );
+            })}
+            <div ref={messagesEndRef} />
+          </div>
+        </ScrollArea>
 
-      <div className={`p-4 bg-card overflow-auto transition-all duration-500 ease-in-out ${isExpanded ? "w-[60%]" : "w-80"}`}>
+        <div className="border-t border-border p-4 pb-6">
+          <div className="flex gap-2">
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder="Instruction for the AI... (e.g., 'Add detailed objectives about measuring thermal conductivity')"
+              className="resize-none"
+              rows={3}
+              data-testid="textarea-chat-input"
+            />
+            <Button 
+              onClick={handleSend} 
+              disabled={!input.trim() || generateAI.isPending}
+              size="icon"
+              className="h-full"
+              data-testid="button-send"
+            >
+              {generateAI.isPending ? <Sparkles className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </div>
+        </div>
+        </div>
+      )}
+
+      {isExpanded && (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="border-b border-border p-4 flex items-center justify-between gap-3">
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={handleTitleBlur}
+              className="text-xl font-semibold border-none shadow-none focus-visible:ring-0 px-0 flex-1 bg-transparent"
+              data-testid="input-notebook-title-expanded"
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsExpanded(false)}
+              data-testid="button-collapse-document"
+            >
+              <Minimize2 className="h-4 w-4" />
+            </Button>
+          </div>
+          <ScrollArea className="flex-1 p-8">
+            <div className="max-w-4xl mx-auto space-y-8">
+              {Array.isArray(sections) && sections.map((section, index) => (
+                <Card
+                  key={section.id}
+                  className="p-6 bg-accent/20"
+                  data-testid={`section-card-${section.id}`}
+                >
+                  <h2 className="text-2xl font-bold mb-4">{index + 1}. {section.title}</h2>
+                  <div className="text-base leading-relaxed whitespace-pre-wrap">
+                    {section.content || "No content yet."}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
+
+      {!isExpanded && (
+        <div className="w-80 p-4 bg-card overflow-auto">
         {currentPlan && currentPlan.variables && (
-          <Accordion type="single" collapsible className="mb-4" defaultValue="context">
+          <Accordion type="single" collapsible className="mb-4" value={isContextOpen} onValueChange={setIsContextOpen}>
             <AccordionItem value="context" className="border rounded-lg px-3">
               <AccordionTrigger className="text-sm font-semibold hover:no-underline py-3">
                 <div className="flex items-center gap-2">
@@ -575,15 +679,22 @@ export default function Notebook() {
             <FileText className="h-4 w-4 text-muted-foreground" />
             <h3 className="font-semibold text-sm text-foreground">Chapters</h3>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setIsExpanded(!isExpanded)}
-            data-testid="button-expand-chapters"
-          >
-            {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
+          <div className="flex items-center gap-2">
+            {!isContextOpen && currentPlan?.tasks && (
+              <Badge variant="secondary" className="text-xs px-2 py-0.5" data-testid="progress-indicator">
+                {currentPlan.tasks.filter((t: any) => t.done).length}/{currentPlan.tasks.length}
+              </Badge>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setIsExpanded(!isExpanded)}
+              data-testid="button-expand-chapters"
+            >
+              {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
         <div className="space-y-3">
           {Array.isArray(sections) && sections.map((section, index) => (
@@ -633,7 +744,8 @@ export default function Notebook() {
             </ScrollArea>
           </DialogContent>
         </Dialog>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
