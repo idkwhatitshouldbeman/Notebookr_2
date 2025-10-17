@@ -10,15 +10,22 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (October 17, 2025)
 
-### One-Task-Per-Call AI Workflow with Visual Progress (Latest)
-- **One Action Per API Call:** Each backend call executes a single task (plan/execute one task/review) then returns
-- **Frontend-Controlled Loop:** Frontend repeatedly calls backend until work is complete (backend returns isComplete=true)
-- **Visible TODO List:** Users see AI's task plan in sidebar with real-time progress (done tasks have strikethrough)
-- **Section Update Highlights:** Sections flash with subtle primary color when updated (fades after 2s) for visual feedback
-- **Fresh Section Data:** Frontend fetches latest sections before each AI call to ensure AI sees all previous updates
-- **Better Completion Handling:** Clear messages for different completion states (complete, paused, iteration limit)
+### Variable-Based AI Planning System (Latest)
+- **One-Prompt Document Generation:** Users type one instruction (e.g., "give me a 20 page essay about bananas") and AI generates entire document
+- **Intelligent Variable Extraction:** AI extracts context variables from user instruction:
+  - Topic: Main subject matter
+  - Target Length: Desired document size (e.g., "20 pages" → creates 15-20 sections)
+  - Estimated Sections: Calculated based on target length
+  - Tone: Writing style (academic, casual, technical, etc.)
+  - Focus Areas: Key topics to emphasize
+- **Question-Asking Capability:** AI can request clarification when uncertain about requirements
+  - Sets shouldContinue=false and returns questions in message
+  - User answers update variables via "awaiting_answers" phase
+  - Automatically continues to execution after receiving answers
+- **Document Context Display:** Sidebar shows extracted variables instead of rigid TODO checklist
+- **Flexible Iteration Limit:** Raised to 100 (failsafe only) - AI decides completion via isComplete flag
+- **Section Update Highlights:** Sections flash with subtle primary color when updated (fades after 2s)
 - **Always-Visible Chat:** Chat input remains accessible even in expanded document view mode
-- **Improved Error Handling:** Specific error messages for 400/500 responses with graceful loop termination
 
 ### Advanced AI System with Three-Phase Workflow (October 16, 2025)
 - **OpenRouter Multi-Model Fallback:** Free AI using 9 OpenRouter models across 3 API keys with graceful degradation to OpenAI
