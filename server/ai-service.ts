@@ -309,16 +309,38 @@ Respond with JSON:
       t === nextTask ? { ...t, done: true } : t
     );
 
-    return {
-      phase: "execute",
-      actions: execResponse.actions || [],
-      message: execResponse.message || "Executed task",
-      aiMemory: {
-        ...aiMemory,
-        plan: { ...plan, tasks: updatedTasks }
-      },
-      confidence: "high"
+    const updatedMemory = {
+      ...aiMemory,
+      plan: { ...plan, tasks: updatedTasks }
     };
+
+    // Check if there are more tasks to execute
+    const remainingTasks = updatedTasks.filter((t: any) => !t.done);
+    
+    if (remainingTasks.length > 0) {
+      // Still have tasks to do, continue execution phase
+      console.log(`🔄 ${remainingTasks.length} tasks remaining. Continuing execution...`);
+      
+      const nextExecution = await threePhaseGeneration({
+        ...request,
+        aiMemory: updatedMemory,
+        iterationCount: iterationCount + 1
+      });
+      
+      // Combine actions from this execution and the next
+      return {
+        ...nextExecution,
+        actions: [...(execResponse.actions || []), ...(nextExecution.actions || [])]
+      };
+    }
+
+    // All tasks done! Proceed to review
+    console.log("✅ All tasks completed. Proceeding to review phase...");
+    return await threePhaseGeneration({
+      ...request,
+      aiMemory: { ...updatedMemory, currentPhase: "review" },
+      iterationCount: iterationCount + 1
+    });
   }
 
   // Phase 3: Review
