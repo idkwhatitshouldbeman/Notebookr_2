@@ -8,18 +8,26 @@ Notebookr is a free AI-powered engineering notebook application that uses a conv
 
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (October 16, 2025)
+## Recent Changes (October 17, 2025)
 
-### Advanced AI System with Three-Phase Workflow (Latest)
-- **OpenRouter Multi-Model Fallback:** Free AI using 9 OpenRouter models (meta-llama/llama-3.3-70b, nvidia/llama-3.1-nemotron-70b, deepseek/deepseek-chat, etc.) across 3 API keys with graceful degradation to OpenAI
-- **Three-Phase AI Workflow:** Autonomous Plan → Execute → Review phases that run automatically in single request
-  - Phase 1 (Planning): AI analyzes instruction and creates comprehensive document plan
-  - Phase 2 (Execution): AI executes tasks, creates/updates sections based on plan
-  - Phase 3 (Review): AI reviews work quality and suggests improvements
-- **AI Memory System:** Hidden notebook.aiMemory field stores TODO list, goals, and document plan for context persistence
-- **Progress Indicators:** Real-time UI shows current AI phase (📋 Plan, ⚡ Execute, 🔍 Review) and confidence level (high/medium/low)
+### One-Task-Per-Call AI Workflow with Visual Progress (Latest)
+- **One Action Per API Call:** Each backend call executes a single task (plan/execute one task/review) then returns
+- **Frontend-Controlled Loop:** Frontend repeatedly calls backend until work is complete (backend returns isComplete=true)
+- **Visible TODO List:** Users see AI's task plan in sidebar with real-time progress (done tasks have strikethrough)
+- **Section Update Highlights:** Sections flash with subtle primary color when updated (fades after 2s) for visual feedback
+- **Fresh Section Data:** Frontend fetches latest sections before each AI call to ensure AI sees all previous updates
+- **Better Completion Handling:** Clear messages for different completion states (complete, paused, iteration limit)
+- **Always-Visible Chat:** Chat input remains accessible even in expanded document view mode
+- **Improved Error Handling:** Specific error messages for 400/500 responses with graceful loop termination
+
+### Advanced AI System with Three-Phase Workflow (October 16, 2025)
+- **OpenRouter Multi-Model Fallback:** Free AI using 9 OpenRouter models across 3 API keys with graceful degradation to OpenAI
+- **Three-Phase AI Workflow:** Plan → Execute → Review phases
+  - Phase 1 (Planning): Creates comprehensive document plan with tasks
+  - Phase 2 (Execution): Processes ONE task per call, returns updated sections
+  - Phase 3 (Review): Evaluates quality, adds improvement tasks if needed
+- **AI Memory System:** Hidden notebook.aiMemory field stores TODO list and document plan for context persistence
 - **Version History:** Automatic version snapshots saved before each section update with restore functionality
-- **Version API Endpoints:** GET /api/sections/:id/versions, POST /api/sections/:id/restore/:versionId
 
 ### Standalone Authentication System (October 15, 2025)
 - Replaced Replit Auth with standalone username/password authentication
