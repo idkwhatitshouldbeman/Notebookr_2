@@ -128,9 +128,7 @@ export default function Home() {
             
             <Card 
               className="p-6 hover-elevate cursor-pointer transition-all border-dashed flex flex-col items-center justify-center min-h-[140px]"
-              onClick={() => handleCreateNotebook("Untitled Notebook", "", [
-                { title: "Section 1", orderIndex: "0" },
-              ])}
+              onClick={() => handleCreateNotebook("Untitled Notebook", "", [])}
               data-testid="card-new-notebook"
             >
               <Plus className="h-8 w-8 text-muted-foreground mb-2" />

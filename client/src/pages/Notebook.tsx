@@ -14,7 +14,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Send, Sparkles, FileText, User, Bot, Loader2, Maximize2, Minimize2 } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Send, Sparkles, FileText, User, Bot, Loader2, Maximize2, Minimize2, MoreVertical, Trash2, Edit2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { queryClient } from "@/lib/queryClient";
 import type { Notebook as NotebookType, Section } from "@shared/schema";
@@ -45,6 +58,8 @@ export default function Notebook() {
   const [currentPlan, setCurrentPlan] = useState<any>(null);
   const [persistedAiMemory, setPersistedAiMemory] = useState<any>(null);
   const [recentlyUpdatedSections, setRecentlyUpdatedSections] = useState<Set<string>>(new Set());
+  const [processingStartTime, setProcessingStartTime] = useState<number | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
@@ -74,6 +89,18 @@ export default function Notebook() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Track elapsed time during AI processing
+  useEffect(() => {
+    if (processingStartTime) {
+      const interval = setInterval(() => {
+        setElapsedTime(Math.floor((Date.now() - processingStartTime) / 1000));
+      }, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setElapsedTime(0);
+    }
+  }, [processingStartTime]);
 
   const scrollToSection = (sectionId: string) => {
     sectionRefs.current[sectionId]?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -173,6 +200,7 @@ export default function Notebook() {
     
     try {
       console.log("🤖 AI is editing notebook...");
+      setProcessingStartTime(Date.now()); // Start tracking time
       
       // Keep calling AI until complete
       let aiMemory: any = persistedAiMemory || undefined; // Use persisted memory if available
@@ -313,6 +341,7 @@ export default function Notebook() {
           };
           setMessages(prev => [...prev, pauseMessage]);
           setAiPhase(null);
+          setProcessingStartTime(null); // Stop tracking time
           return; // Exit early, don't add another message
         }
         
@@ -324,6 +353,7 @@ export default function Notebook() {
       // Clear phase indicator and persisted memory on completion
       setAiPhase(null);
       setPersistedAiMemory(null); // Clear memory to avoid stale context
+      setProcessingStartTime(null); // Stop tracking time
       
       // Determine completion message
       let completionMessage = "Document complete! ✨";
@@ -342,6 +372,7 @@ export default function Notebook() {
       console.error("❌ AI error:", error);
       setAiPhase(null);
       setPersistedAiMemory(null); // Clear memory on error
+      setProcessingStartTime(null); // Stop tracking time
       
       let errorText = "Sorry, I encountered an error. Please try again.";
       
@@ -382,186 +413,161 @@ export default function Notebook() {
 
   return (
     <div className="h-screen flex bg-background">
-      {!isExpanded ? (
-        <div className="flex-1 flex flex-col overflow-hidden border-r border-border">
-          <div className="border-b border-border p-4 flex items-center gap-3">
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={handleTitleBlur}
-              className="text-xl font-semibold border-none shadow-none focus-visible:ring-0 px-0 flex-1 bg-transparent"
-              data-testid="input-notebook-title"
-            />
-          </div>
-
-          <ScrollArea className="flex-1 p-6">
-          <div className="max-w-2xl mx-auto space-y-4">
-            {aiPhase && (
-              <div className="mb-4 p-3 rounded-lg bg-accent/50 border border-accent flex items-center gap-3">
-                {aiPhase === "plan" && <><Loader2 className="h-4 w-4 animate-spin" /> <span className="text-sm">Planning document structure...</span></>}
-                {aiPhase === "execute" && <><Loader2 className="h-4 w-4 animate-spin" /> <span className="text-sm">Executing tasks...</span></>}
-                {aiPhase === "review" && <><Loader2 className="h-4 w-4 animate-spin" /> <span className="text-sm">Reviewing work...</span></>}
-              </div>
-            )}
-            {messages.map((message) => (
-              <div key={message.id} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                {message.role === "assistant" && (
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-primary text-primary-foreground">
-                      <Bot className="h-4 w-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                )}
-                <Card className={`p-4 max-w-[80%] ${message.role === "user" ? "bg-primary text-primary-foreground" : ""}`}>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-                </Card>
-                {message.role === "user" && (
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback>
-                      <User className="h-4 w-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                )}
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
-        </ScrollArea>
-
-        <div className="border-t border-border p-4 pb-6">
-          <div className="flex gap-2">
-            <Textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
+      <div className="flex-1 flex flex-col overflow-hidden border-r border-border">
+        <div className="border-b border-border p-4 flex items-center gap-3">
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={handleTitleBlur}
+            className="text-xl font-semibold border-none shadow-none focus-visible:ring-0 px-0 flex-1 bg-transparent"
+            data-testid="input-notebook-title"
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" data-testid="button-notebook-menu">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => {
+                const newTitle = prompt("Enter new title:", title);
+                if (newTitle && newTitle.trim()) {
+                  setTitle(newTitle);
+                  updateTitle.mutate(newTitle);
                 }
-              }}
-              placeholder="Instruction for the AI... (e.g., 'Add detailed objectives about measuring thermal conductivity')"
-              className="resize-none"
-              rows={3}
-              data-testid="textarea-chat-input"
-            />
-            <Button 
-              onClick={handleSend} 
-              disabled={!input.trim() || generateAI.isPending}
-              size="icon"
-              className="h-full"
-              data-testid="button-send"
-            >
-              {generateAI.isPending ? <Sparkles className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </Button>
-          </div>
-        </div>
-        </div>
-      ) : (
-        <div className="flex-1 flex flex-col overflow-hidden border-r border-border">
-          <div className="border-b border-border p-4 flex items-center gap-3">
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={handleTitleBlur}
-              className="text-xl font-semibold border-none shadow-none focus-visible:ring-0 px-0 flex-1 bg-transparent"
-              data-testid="input-notebook-title-expanded"
-            />
-          </div>
-          <ScrollArea className="flex-1 p-8">
-            <div className="max-w-4xl mx-auto space-y-8">
-              {Array.isArray(sections) && sections.map((section, index) => (
-                <div
-                  key={section.id}
-                  ref={(el) => (sectionRefs.current[section.id] = el)}
-                  className="scroll-mt-4"
-                >
-                  <h2 className="text-2xl font-bold mb-4">{index + 1}. {section.title}</h2>
-                  <div className="text-base leading-relaxed whitespace-pre-wrap">
-                    {section.content || "No content yet."}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-
-          <div className="border-t border-border p-4 pb-6">
-            <div className="flex gap-2">
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
+              }}>
+                <Edit2 className="h-4 w-4 mr-2" />
+                Rename
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => {
+                  if (confirm("Are you sure you want to delete this notebook? This cannot be undone.")) {
+                    fetch(`/api/notebooks/${id}`, { method: "DELETE" })
+                      .then(() => window.location.href = "/")
+                      .catch(err => console.error("Delete failed:", err));
                   }
                 }}
-                placeholder="Instruction for the AI... (e.g., 'Add detailed objectives about measuring thermal conductivity')"
-                className="resize-none"
-                rows={3}
-                data-testid="textarea-chat-input"
-              />
-              <Button 
-                onClick={handleSend} 
-                disabled={!input.trim() || generateAI.isPending}
-                size="icon"
-                className="h-full"
-                data-testid="button-send"
               >
-                {generateAI.isPending ? <Sparkles className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-      )}
 
-      <div className="w-80 p-4 bg-card overflow-auto">
-        {currentPlan && currentPlan.variables && (
-          <div className="mb-6">
-            <h3 className="font-semibold text-sm text-foreground mb-3 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              Document Context
-            </h3>
-            <div className="space-y-2">
-              {currentPlan.variables.topic && (
-                <div className="text-xs p-2 rounded-md bg-accent/50">
-                  <div className="font-medium text-foreground">Topic</div>
-                  <div className="text-muted-foreground mt-1">{currentPlan.variables.topic}</div>
-                </div>
+        <ScrollArea className="flex-1 p-6">
+        <div className="max-w-2xl mx-auto space-y-4">
+          {aiPhase && (
+            <div className="mb-4 p-3 rounded-lg bg-accent/50 border border-accent flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">
+                  {aiPhase === "plan" && "Planning document structure..."}
+                  {aiPhase === "execute" && "Executing tasks..."}
+                  {aiPhase === "review" && "Reviewing work..."}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">{elapsedTime}s</span>
+                {elapsedTime > 30 && (
+                  <span className="text-xs text-yellow-600 dark:text-yellow-500">(AI service may be slow)</span>
+                )}
+              </div>
+            </div>
+          )}
+          {messages.map((message) => (
+            <div key={message.id} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+              {message.role === "assistant" && (
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-primary text-primary-foreground">
+                    <Bot className="h-4 w-4" />
+                  </AvatarFallback>
+                </Avatar>
               )}
-              {currentPlan.variables.targetLength && (
-                <div className="text-xs p-2 rounded-md bg-accent/50">
-                  <div className="font-medium text-foreground">Length</div>
-                  <div className="text-muted-foreground mt-1">{currentPlan.variables.targetLength}</div>
-                </div>
-              )}
-              {currentPlan.variables.estimatedSections && (
-                <div className="text-xs p-2 rounded-md bg-accent/50">
-                  <div className="font-medium text-foreground">Sections</div>
-                  <div className="text-muted-foreground mt-1">{currentPlan.variables.estimatedSections}</div>
-                </div>
-              )}
-              {currentPlan.variables.tone && (
-                <div className="text-xs p-2 rounded-md bg-accent/50">
-                  <div className="font-medium text-foreground">Tone</div>
-                  <div className="text-muted-foreground mt-1 capitalize">{currentPlan.variables.tone}</div>
-                </div>
-              )}
-              {currentPlan.variables.focusAreas && currentPlan.variables.focusAreas.length > 0 && (
-                <div className="text-xs p-2 rounded-md bg-accent/50">
-                  <div className="font-medium text-foreground">Focus Areas</div>
-                  <div className="text-muted-foreground mt-1">{currentPlan.variables.focusAreas.join(', ')}</div>
-                </div>
-              )}
-              {currentPlan.tasks && (
-                <div className="text-xs p-2 rounded-md bg-primary/10">
-                  <div className="font-medium text-foreground">Progress</div>
-                  <div className="text-muted-foreground mt-1">
-                    {currentPlan.tasks.filter((t: any) => t.done).length} / {currentPlan.tasks.length} sections complete
-                  </div>
-                </div>
+              <Card className={`p-4 max-w-[80%] ${message.role === "user" ? "bg-primary text-primary-foreground" : ""}`}>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+              </Card>
+              {message.role === "user" && (
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback>
+                    <User className="h-4 w-4" />
+                  </AvatarFallback>
+                </Avatar>
               )}
             </div>
-          </div>
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
+      </ScrollArea>
+
+      <div className="border-t border-border p-4 pb-6">
+        <div className="flex gap-2">
+          <Textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder="Instruction for the AI... (e.g., 'Add detailed objectives about measuring thermal conductivity')"
+            className="resize-none"
+            rows={3}
+            data-testid="textarea-chat-input"
+          />
+          <Button 
+            onClick={handleSend} 
+            disabled={!input.trim() || generateAI.isPending}
+            size="icon"
+            className="h-full"
+            data-testid="button-send"
+          >
+            {generateAI.isPending ? <Sparkles className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </Button>
+        </div>
+      </div>
+      </div>
+
+      <div className={`p-4 bg-card overflow-auto transition-all duration-500 ease-in-out ${isExpanded ? "w-[60%]" : "w-80"}`}>
+        {currentPlan && currentPlan.variables && (
+          <Accordion type="single" collapsible className="mb-4" defaultValue="context">
+            <AccordionItem value="context" className="border rounded-lg px-3">
+              <AccordionTrigger className="text-sm font-semibold hover:no-underline py-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  Document Context
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-2 pb-2">
+                  {Object.entries(currentPlan.variables).map(([key, value]: [string, any]) => {
+                    if (!value || (Array.isArray(value) && value.length === 0)) return null;
+                    
+                    const displayKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                    const displayValue = Array.isArray(value) ? value.join(', ') : String(value);
+                    
+                    return (
+                      <div key={key} className="text-xs p-2 rounded-md bg-accent/50">
+                        <div className="font-medium text-foreground">{displayKey}</div>
+                        <div className="text-muted-foreground mt-1">{displayValue}</div>
+                      </div>
+                    );
+                  })}
+                  {currentPlan.tasks && (
+                    <div className="text-xs p-2 rounded-md bg-primary/10 mt-2">
+                      <div className="font-medium text-foreground">Progress</div>
+                      <div className="text-muted-foreground mt-1">
+                        {currentPlan.tasks.filter((t: any) => t.done).length} / {currentPlan.tasks.length} sections complete
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         )}
         
         <div className="flex items-center justify-between mb-4">
@@ -581,30 +587,36 @@ export default function Notebook() {
         </div>
         <div className="space-y-3">
           {Array.isArray(sections) && sections.map((section, index) => (
-            <button
-              key={section.id}
-              onClick={() => isExpanded ? scrollToSection(section.id) : setSelectedSection(section)}
-              className={`w-full text-left p-3 rounded-md hover-elevate transition-all relative ${
-                selectedSection?.id === section.id ? "bg-accent" : ""
-              } ${
-                editingSections.has(section.id) ? "ring-2 ring-primary animate-pulse" : ""
-              } ${
-                recentlyUpdatedSections.has(section.id) ? "bg-primary/20 ring-1 ring-primary/50" : ""
-              }`}
-              data-testid={`chapter-link-${section.title.toLowerCase()}`}
-            >
-              <div className="font-medium text-foreground text-sm mb-1 flex items-center gap-2">
-                {index + 1}. {section.title}
-                {editingSections.has(section.id) && (
-                  <Sparkles className="h-3 w-3 text-primary animate-spin" />
+            <div key={section.id}>
+              <button
+                onClick={() => !isExpanded && setSelectedSection(section)}
+                className={`w-full text-left p-3 rounded-md ${!isExpanded ? "hover-elevate" : ""} transition-all relative ${
+                  selectedSection?.id === section.id && !isExpanded ? "bg-accent" : ""
+                } ${
+                  editingSections.has(section.id) ? "ring-2 ring-primary animate-pulse" : ""
+                } ${
+                  recentlyUpdatedSections.has(section.id) ? "bg-primary/20 ring-1 ring-primary/50" : ""
+                }`}
+                data-testid={`chapter-link-${section.title.toLowerCase()}`}
+              >
+                <div className="font-medium text-foreground text-sm mb-1 flex items-center gap-2">
+                  {index + 1}. {section.title}
+                  {editingSections.has(section.id) && (
+                    <Sparkles className="h-3 w-3 text-primary animate-spin" />
+                  )}
+                </div>
+                {!isExpanded && section.content && (
+                  <div className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap line-clamp-3">
+                    {section.content}
+                  </div>
                 )}
-              </div>
-              {section.content && (
-                <div className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap line-clamp-3">
+              </button>
+              {isExpanded && section.content && (
+                <div className="pl-3 pr-2 py-2 text-sm text-foreground leading-relaxed whitespace-pre-wrap">
                   {section.content}
                 </div>
               )}
-            </button>
+            </div>
           ))}
         </div>
 
