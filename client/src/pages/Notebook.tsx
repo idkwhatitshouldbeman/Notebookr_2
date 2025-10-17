@@ -120,7 +120,20 @@ export default function Notebook() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      return response.json();
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `API error: ${response.status} ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      // Validate response has required fields
+      if (!result || typeof result !== 'object') {
+        throw new Error('Invalid response from AI service');
+      }
+      
+      return result;
     },
   });
 
@@ -328,14 +341,30 @@ export default function Notebook() {
     } catch (error: any) {
       console.error("❌ AI error:", error);
       setAiPhase(null);
+      setPersistedAiMemory(null); // Clear memory on error
       
       let errorText = "Sorry, I encountered an error. Please try again.";
-      if (error?.message) {
-        errorText = `Error: ${error.message}`;
-      } else if (error?.status === 400) {
-        errorText = "Bad request - there was an issue with the AI generation. Please try a different instruction.";
-      } else if (error?.status >= 500) {
-        errorText = "Server error - please try again in a moment.";
+      
+      // Network or fetch errors
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        errorText = "Unable to connect to the AI service. Please check your internet connection and try again.";
+      }
+      // Explicit error messages from the API
+      else if (error?.message) {
+        // Make error messages more user-friendly
+        if (error.message.includes('rate limit') || error.message.includes('429')) {
+          errorText = "The AI service is currently overloaded (rate limit reached). Please wait a moment and try again, or try a simpler prompt.";
+        } else if (error.message.includes('401') || error.message.includes('403')) {
+          errorText = "Authentication error with the AI service. Please refresh the page and try again.";
+        } else if (error.message.includes('404')) {
+          errorText = "The AI service endpoint could not be found. This might be a temporary issue - please try again.";
+        } else if (error.message.includes('500') || error.message.includes('502') || error.message.includes('503')) {
+          errorText = "The AI service is experiencing issues. Please try again in a moment.";
+        } else if (error.message.includes('Invalid response')) {
+          errorText = "Received an invalid response from the AI service. This might be due to service issues - please try again.";
+        } else {
+          errorText = `Error: ${error.message}`;
+        }
       }
       
       const errorMessage: Message = {
