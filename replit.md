@@ -10,7 +10,28 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (October 17, 2025)
 
-### Advanced UX Improvements (Latest)
+### AI Detection Avoidance & Workflow Enhancements (Latest)
+- **AI Detection Post-Processing:** After document generation completes, AI automatically checks and fixes content to avoid AI detection patterns
+  - Runs transparently after review phase (generation AI unaware)
+  - Checks 18+ patterns: low perplexity, uniform sentences, n-gram repetition, formal transitions, robotic tone, etc.
+  - Makes content sound more human with varied sentence length, natural phrasing, emotional touches
+  - Only applies fixes if patterns detected, then marks document complete
+- **Document Context Persistence:** Variables (topic, length, tone, criteria, etc.) now persist across page reloads
+  - Saved in notebook.aiMemory and restored when revisiting notebooks
+  - Displayed in Document Context accordion with all extracted variables
+  - AI can still modify variables if user requests changes
+- **Real-Time Chat Progress Updates:** Users now see activity messages during generation loop
+  - "Planning document..." - AI extracting variables and creating plan
+  - "Executing tasks... (3/12 completed)" - Shows progress through task list
+  - "Reviewing work..." - AI evaluating quality and completeness
+  - "Post-processing content..." - AI detection avoidance phase
+  - Eliminates boring wait with no feedback
+- **Section Flashing Animation:** Visual feedback when sections are created or updated
+  - Subtle primary color border pulse animation (2 second duration)
+  - CSS keyframes with box-shadow transition
+  - Automatically clears after animation completes
+
+### Advanced UX Improvements
 - **Full-Screen Document View:** Expanded view now takes over entire screen
   - Hides chat completely for distraction-free reading
   - Minimize button returns to chat view
@@ -62,12 +83,13 @@ Preferred communication style: Simple, everyday language.
 - **Flexible Iteration Limit:** Raised to 100 (failsafe only) - AI decides completion via isComplete flag
 - **Section Update Highlights:** Sections flash with subtle primary color when updated (fades after 2s)
 
-### Advanced AI System with Three-Phase Workflow (October 16, 2025)
+### Advanced AI System with Four-Phase Workflow (October 16, 2025)
 - **OpenRouter Multi-Model Fallback:** Free AI using 9 OpenRouter models across 3 API keys with graceful degradation to OpenAI
-- **Three-Phase AI Workflow:** Plan → Execute → Review phases
+- **Four-Phase AI Workflow:** Plan → Execute → Review → Post-Process phases
   - Phase 1 (Planning): Creates comprehensive document plan with tasks
   - Phase 2 (Execution): Processes ONE task per call, returns updated sections
   - Phase 3 (Review): Evaluates quality, adds improvement tasks if needed
+  - Phase 4 (Post-Process): Checks and fixes AI detection patterns transparently
 - **AI Memory System:** Hidden notebook.aiMemory field stores TODO list and document plan for context persistence
 - **Version History:** Automatic version snapshots saved before each section update with restore functionality
 
@@ -175,10 +197,11 @@ Preferred communication style: Simple, everyday language.
 - **OpenAI API:** Fallback provider for content generation
   - Configurable via AI_INTEGRATIONS_OPENAI_API_KEY environment variable
   - Supports custom base URL via AI_INTEGRATIONS_OPENAI_BASE_URL for alternative providers
-- **Three-Phase AI Workflow:**
+- **Four-Phase AI Workflow:**
   - Phase 1 (Planning): Analyzes instruction, creates comprehensive document plan stored in aiMemory
   - Phase 2 (Execution): Executes plan tasks, creates/updates sections with content
   - Phase 3 (Review): Reviews work quality, identifies gaps, suggests improvements
+  - Phase 4 (Post-Process): Checks and fixes AI detection patterns transparently
   - All phases run automatically in single API call via recursive phase progression
   - Context-aware generation using notebook sections and aiMemory as reference
 
