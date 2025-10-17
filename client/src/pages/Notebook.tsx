@@ -288,8 +288,16 @@ export default function Notebook() {
         }
         
         if (!result.shouldContinue) {
-          console.warn("⚠️ AI stopped but work may be incomplete");
-          break;
+          console.warn("⚠️ AI paused (may have questions or need user input)");
+          // Use the AI's actual message (may contain questions)
+          const pauseMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content: result.message || "I need more information. Please provide additional details.",
+          };
+          setMessages(prev => [...prev, pauseMessage]);
+          setAiPhase(null);
+          return; // Exit early, don't add another message
         }
         
         // Continue looping
@@ -301,13 +309,9 @@ export default function Notebook() {
       setAiPhase(null);
       
       // Determine completion message
-      let completionMessage = "I've updated the notebook sections.";
-      if (isComplete) {
-        completionMessage = "Document complete! ✨";
-      } else if (iterationCount >= maxIterations) {
+      let completionMessage = "Document complete! ✨";
+      if (iterationCount >= maxIterations) {
         completionMessage = "Reached iteration limit. The document may need more work.";
-      } else {
-        completionMessage = "Work paused. You can continue by giving me more instructions.";
       }
       
       // Add final AI message to chat
