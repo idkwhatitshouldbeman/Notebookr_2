@@ -10,7 +10,30 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (October 17, 2025)
 
-### Variable-Based AI Planning System (Latest)
+### UX Enhancements (Latest)
+- **Processing Indicators:** Added elapsed time tracking to loading states
+  - Timer shows seconds elapsed during AI operations
+  - Warning appears after 30s to indicate slow service (not stuck)
+  - Helps users distinguish between processing and stuck states
+- **Dynamic Variables Accordion:** Document Context moved to collapsible accordion
+  - Variables now fully dynamic - AI can add any fields
+  - Uses Object.entries loop instead of hardcoded fields
+  - Defaults to open state, user can collapse to save space
+- **Clean Notebook Creation:** Removed default "Section 1" creation
+  - New notebooks start with empty sections array
+  - AI creates all sections from scratch based on user prompt
+- **Notebook Menu:** Added three-dots dropdown for notebook actions
+  - Rename: Prompts for new title
+  - Delete: Confirms before deletion
+  - Matches home page pattern
+- **Smooth Expanding Chapters Panel:** 
+  - Chat always visible, chapters panel expands/contracts smoothly
+  - Normal width: 320px (w-80), Expanded: 60% of screen
+  - Transition animates over 500ms with ease-in-out
+  - Expanded view shows full section content inline (no truncation)
+  - Collapsed view shows 3-line preview, click opens dialog
+
+### Variable-Based AI Planning System (October 17, 2025)
 - **One-Prompt Document Generation:** Users type one instruction (e.g., "give me a 20 page essay about bananas") and AI generates entire document
 - **Intelligent Variable Extraction:** AI extracts context variables from user instruction:
   - Topic: Main subject matter
@@ -22,10 +45,8 @@ Preferred communication style: Simple, everyday language.
   - Sets shouldContinue=false and returns questions in message
   - User answers update variables via "awaiting_answers" phase
   - Automatically continues to execution after receiving answers
-- **Document Context Display:** Sidebar shows extracted variables instead of rigid TODO checklist
 - **Flexible Iteration Limit:** Raised to 100 (failsafe only) - AI decides completion via isComplete flag
 - **Section Update Highlights:** Sections flash with subtle primary color when updated (fades after 2s)
-- **Always-Visible Chat:** Chat input remains accessible even in expanded document view mode
 
 ### Advanced AI System with Three-Phase Workflow (October 16, 2025)
 - **OpenRouter Multi-Model Fallback:** Free AI using 9 OpenRouter models across 3 API keys with graceful degradation to OpenAI
