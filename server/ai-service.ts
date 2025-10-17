@@ -424,6 +424,104 @@ Respond with JSON:
     };
   }
 
+  // Post-processing phase: AI detection avoidance
+  if (aiMemory.currentPhase === "postprocess") {
+    console.log("🔧 Post-Processing: Checking for AI detection patterns...");
+    
+    const detectionPatterns = `AI Detection Patterns to Avoid:
+1. Low Perplexity - Predictable, statistically simple language
+2. Uniform Sentence Length - Repeated rhythm, little variation  
+3. N-gram Repetition - Identical phrases reused
+4. Lack of Specific Details - Generic, detached tone
+5. Overuse of Em Dashes - Balanced em dash clauses
+6. Overuse of Formal Transitions - "Furthermore", "Moreover"
+7. Too-Perfect Grammar - No typos or quirks
+8. Overuse of Rare Words - Dense, ornate vocabulary
+9. Flat or Robotic Tone - Vague, toneless phrasing
+10. Lack of Emotional Variance - Emotionless summaries
+11. Simplified Syntax - Repetitive structure
+12. Logical Inconsistencies - Abrupt transitions
+13. Adjective Stacking - "really very extremely"
+14. No Questions - AI rarely asks questions
+15. Lack of Figurative Language - No metaphor/humor/slang
+16. Overuse of Hedges - "may possibly be considered"
+17. Generic Examples - Fake, lifeless characters
+18. Known AI Phrases - "In today's fast-paced world..."`;
+
+    const postprocessPrompt = `Review all sections and fix any AI detection patterns WITHOUT the generation AI knowing.
+
+CURRENT SECTIONS:
+${sections.map((s: any) => `## ${s.title}\n${s.content}`).join('\n\n')}
+
+${detectionPatterns}
+
+Check each section for these patterns. If you find ANY, create update actions to fix them naturally. Make text sound more human:
+- Vary sentence length
+- Add specific details or examples
+- Use natural phrasing
+- Include occasional contractions
+- Add emotional touches where appropriate
+- Use conversational transitions
+
+Respond with JSON:
+{
+  "actions": [
+    { "type": "update", "sectionId": "section-id", "content": "improved content" }
+  ],
+  "patternsFound": ["list of patterns detected"],
+  "message": "summary of changes made"
+}`;
+
+    const postprocessResult = await generateWithFallback({
+      messages: [
+        { role: "system", content: "You are a post-processing editor that makes AI-generated content sound more human and natural. You MUST respond with ONLY valid JSON." },
+        { role: "user", content: postprocessPrompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 3000,
+    });
+
+    let postprocessResponse;
+    try {
+      postprocessResponse = JSON.parse(postprocessResult.content);
+    } catch {
+      const jsonMatch = postprocessResult.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (jsonMatch?.[1]) {
+        postprocessResponse = JSON.parse(jsonMatch[1]);
+      } else {
+        postprocessResponse = { actions: [], patternsFound: [], message: "No changes needed" };
+      }
+    }
+
+    // If patterns were found and fixed, return actions
+    if (postprocessResponse.actions && postprocessResponse.actions.length > 0) {
+      console.log(`🔧 Post-processing: Fixed ${postprocessResponse.patternsFound?.length || 0} patterns`);
+      return {
+        phase: "review",
+        actions: postprocessResponse.actions,
+        message: postprocessResponse.message || "Improved text naturalness",
+        aiMemory: { ...aiMemory, currentPhase: "complete" },
+        confidence: "high",
+        plan: aiMemory.plan,
+        shouldContinue: false,
+        isComplete: true
+      };
+    }
+
+    // No patterns found, document is complete
+    console.log("✅ Post-processing complete - no AI patterns detected!");
+    return {
+      phase: "review",
+      actions: [],
+      message: "Document complete",
+      aiMemory: { ...aiMemory, currentPhase: "complete" },
+      confidence: "high",
+      plan: aiMemory.plan,
+      shouldContinue: false,
+      isComplete: true
+    };
+  }
+
   // Phase 3: Review
   console.log("🔍 Phase 3: Reviewing work...");
   
@@ -504,16 +602,13 @@ Review the document and respond with JSON:
     };
   }
 
-  // Work is complete
-  console.log("✅ Review complete - document is finished!");
-  return {
-    phase: "review",
-    actions: [],
-    message: review.message || "Document complete",
-    aiMemory: { ...aiMemory, currentPhase: "complete" },
-    confidence: review.quality === "excellent" ? "high" : review.quality === "good" ? "medium" : "low",
-    plan: aiMemory.plan,
-    shouldContinue: false,
-    isComplete: true
-  };
+  // Work is complete - move to post-processing phase
+  console.log("✅ Review complete - moving to post-processing for AI detection avoidance");
+  const updatedMemory = { ...aiMemory, currentPhase: "postprocess" };
+  
+  return await threePhaseGeneration({
+    ...request,
+    aiMemory: updatedMemory,
+    iterationCount: iterationCount + 1
+  });
 }

@@ -87,6 +87,14 @@ export default function Notebook() {
   useEffect(() => {
     if (notebook) {
       setTitle(notebook.title);
+      // Load document context (variables) from persisted aiMemory
+      if (notebook.aiMemory) {
+        const memory = notebook.aiMemory as any;
+        setPersistedAiMemory(memory);
+        if (memory.plan) {
+          setCurrentPlan(memory.plan);
+        }
+      }
     }
   }, [notebook]);
 
@@ -234,9 +242,34 @@ export default function Notebook() {
         console.log(`✅ AI Response (iteration ${iterationCount}):`, result);
         
         // Update phase and plan
+        const previousPhase = aiPhase;
         setAiPhase(result.phase || null);
         if (result.plan) {
           setCurrentPlan(result.plan);
+        }
+        
+        // Add phase change messages to chat
+        if (result.phase && result.phase !== previousPhase) {
+          let phaseMessage = "";
+          if (result.phase === "plan") {
+            phaseMessage = "📋 Planning document structure...";
+          } else if (result.phase === "execute") {
+            const incompleteTasks = result.plan?.tasks?.filter((t: any) => !t.done) || [];
+            const totalTasks = result.plan?.tasks?.length || 0;
+            const completedTasks = totalTasks - incompleteTasks.length;
+            phaseMessage = `⚡ Executing tasks... (${completedTasks}/${totalTasks} completed)`;
+          } else if (result.phase === "review") {
+            phaseMessage = "🔍 Reviewing work quality...";
+          }
+          
+          if (phaseMessage) {
+            const phaseMsg: Message = {
+              id: `phase-${Date.now()}`,
+              role: "assistant",
+              content: phaseMessage
+            };
+            setMessages(prev => [...prev, phaseMsg]);
+          }
         }
         
         // Auto-generate title if it's still "Untitled Notebook" and AI suggested a title
@@ -620,7 +653,9 @@ export default function Notebook() {
               {Array.isArray(sections) && sections.map((section, index) => (
                 <Card
                   key={section.id}
-                  className="p-6 bg-accent/20"
+                  className={`p-6 bg-accent/20 transition-all duration-300 ${
+                    recentlyUpdatedSections.has(section.id) ? 'animate-flash-border' : ''
+                  }`}
                   data-testid={`section-card-${section.id}`}
                 >
                   <h2 className="text-2xl font-bold mb-4">{index + 1}. {section.title}</h2>
