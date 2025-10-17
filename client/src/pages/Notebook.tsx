@@ -156,13 +156,6 @@ export default function Notebook() {
     setMessages(prev => [...prev, userMessage]);
     const instruction = input;
     setInput("");
-
-    const currentSections = sections.map(s => ({ 
-      id: s.id, 
-      title: s.title, 
-      content: s.content || '' 
-    }));
-    console.log("📝 Current sections:", currentSections);
     
     try {
       console.log("🤖 AI is editing notebook...");
@@ -171,10 +164,20 @@ export default function Notebook() {
       let aiMemory: any = undefined;
       let isComplete = false;
       let iterationCount = 0;
-      const maxIterations = 50; // Safety limit
+      const maxIterations = 50; // Frontend safety limit (backend has its own at 10)
       
       while (!isComplete && iterationCount < maxIterations) {
         iterationCount++;
+        
+        // Always fetch fresh sections before calling AI
+        const freshSectionsResponse = await fetch(`/api/notebooks/${id}/sections`);
+        const freshSections = await freshSectionsResponse.json();
+        const currentSections = Array.isArray(freshSections) ? freshSections.map((s: any) => ({ 
+          id: s.id, 
+          title: s.title, 
+          content: s.content || '' 
+        })) : [];
+        console.log(`📝 Fresh sections (iteration ${iterationCount}):`, currentSections);
         
         const result = await generateAI.mutateAsync({ 
           instruction: aiMemory ? "" : instruction, // Only send instruction on first call
@@ -278,31 +281,59 @@ export default function Notebook() {
         isComplete = result.isComplete || false;
         aiMemory = result.aiMemory;
         
-        // If not complete, continue looping
-        if (!isComplete && result.shouldContinue) {
-          console.log("🔄 AI workflow continuing...");
-          await new Promise(resolve => setTimeout(resolve, 500)); // Small delay between calls
-        } else if (!result.shouldContinue) {
+        // Break conditions
+        if (isComplete) {
+          console.log("✅ AI reports work is complete");
           break;
         }
+        
+        if (!result.shouldContinue) {
+          console.warn("⚠️ AI stopped but work may be incomplete");
+          break;
+        }
+        
+        // Continue looping
+        console.log("🔄 AI workflow continuing...");
+        await new Promise(resolve => setTimeout(resolve, 500)); // Small delay between calls
       }
       
       // Clear phase indicator
       setAiPhase(null);
       
+      // Determine completion message
+      let completionMessage = "I've updated the notebook sections.";
+      if (isComplete) {
+        completionMessage = "Document complete! ✨";
+      } else if (iterationCount >= maxIterations) {
+        completionMessage = "Reached iteration limit. The document may need more work.";
+      } else {
+        completionMessage = "Work paused. You can continue by giving me more instructions.";
+      }
+      
       // Add final AI message to chat
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: isComplete ? "Document complete" : (iterationCount >= maxIterations ? "Document generation complete (reached iteration limit)" : "I've updated the notebook sections."),
+        content: completionMessage,
       };
       setMessages(prev => [...prev, aiMessage]);
-    } catch (error) {
+    } catch (error: any) {
       console.error("❌ AI error:", error);
+      setAiPhase(null);
+      
+      let errorText = "Sorry, I encountered an error. Please try again.";
+      if (error?.message) {
+        errorText = `Error: ${error.message}`;
+      } else if (error?.status === 400) {
+        errorText = "Bad request - there was an issue with the AI generation. Please try a different instruction.";
+      } else if (error?.status >= 500) {
+        errorText = "Server error - please try again in a moment.";
+      }
+      
       const errorMessage: Message = {
         id: (Date.now() + 2).toString(),
         role: "assistant",
-        content: "Sorry, I encountered an error. Please try again."
+        content: errorText
       };
       setMessages(prev => [...prev, errorMessage]);
     }
@@ -415,6 +446,34 @@ export default function Notebook() {
               ))}
             </div>
           </ScrollArea>
+
+          <div className="border-t border-border p-4 pb-6">
+            <div className="flex gap-2">
+              <Textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="Instruction for the AI... (e.g., 'Add detailed objectives about measuring thermal conductivity')"
+                className="resize-none"
+                rows={3}
+                data-testid="textarea-chat-input"
+              />
+              <Button 
+                onClick={handleSend} 
+                disabled={!input.trim() || generateAI.isPending}
+                size="icon"
+                className="h-full"
+                data-testid="button-send"
+              >
+                {generateAI.isPending ? <Sparkles className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
