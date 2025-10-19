@@ -84,6 +84,15 @@ export default function Notebook() {
     enabled: !!id && id !== "undefined",
   });
 
+  const { data: loadedMessages = [], isLoading: messagesLoading } = useQuery<Message[]>({
+    queryKey: ["/api/notebooks", id, "messages"],
+    queryFn: async () => {
+      const response = await fetch(`/api/notebooks/${id}/messages`);
+      return response.json();
+    },
+    enabled: !!id && id !== "undefined",
+  });
+
   useEffect(() => {
     if (notebook) {
       setTitle(notebook.title);
@@ -97,6 +106,22 @@ export default function Notebook() {
       }
     }
   }, [notebook]);
+
+  // Load messages from database
+  useEffect(() => {
+    if (loadedMessages && loadedMessages.length > 0) {
+      setMessages(loadedMessages);
+    } else if (!messagesLoading && loadedMessages.length === 0) {
+      // If no messages exist, show welcome message (but don't save it)
+      setMessages([
+        {
+          id: "welcome",
+          role: "assistant",
+          content: "Ready to edit your notebook. Give me instructions and I'll update the sections directly."
+        }
+      ]);
+    }
+  }, [loadedMessages, messagesLoading]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -190,6 +215,20 @@ export default function Notebook() {
     },
   });
 
+  const saveMessage = useMutation({
+    mutationFn: async (data: { notebookId: string; role: "user" | "assistant"; content: string }) => {
+      const response = await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notebooks", id, "messages"] });
+    },
+  });
+
   const handleTitleBlur = () => {
     if (title !== notebook?.title) {
       updateTitle.mutate(title);
@@ -207,6 +246,14 @@ export default function Notebook() {
       content: input,
     };
     setMessages(prev => [...prev, userMessage]);
+    
+    // Save user message to database
+    saveMessage.mutate({
+      notebookId: id!,
+      role: "user",
+      content: input
+    });
+    
     const instruction = input;
     setInput("");
     
@@ -269,6 +316,13 @@ export default function Notebook() {
               content: phaseMessage
             };
             setMessages(prev => [...prev, phaseMsg]);
+            
+            // Save phase message to database
+            saveMessage.mutate({
+              notebookId: id!,
+              role: "assistant",
+              content: phaseMessage
+            });
           }
         }
         
@@ -399,6 +453,14 @@ export default function Notebook() {
             content: result.message || "I need more information. Please provide additional details.",
           };
           setMessages(prev => [...prev, pauseMessage]);
+          
+          // Save pause message to database
+          saveMessage.mutate({
+            notebookId: id!,
+            role: "assistant",
+            content: result.message || "I need more information. Please provide additional details."
+          });
+          
           setAiPhase(null);
           setProcessingStartTime(null); // Stop tracking time
           return; // Exit early, don't add another message
@@ -427,6 +489,13 @@ export default function Notebook() {
         content: completionMessage,
       };
       setMessages(prev => [...prev, aiMessage]);
+      
+      // Save completion message to database
+      saveMessage.mutate({
+        notebookId: id!,
+        role: "assistant",
+        content: completionMessage
+      });
     } catch (error: any) {
       console.error("❌ AI error:", error);
       setAiPhase(null);
@@ -463,6 +532,13 @@ export default function Notebook() {
         content: errorText
       };
       setMessages(prev => [...prev, errorMessage]);
+      
+      // Save error message to database
+      saveMessage.mutate({
+        notebookId: id!,
+        role: "assistant",
+        content: errorText
+      });
     }
   };
 
