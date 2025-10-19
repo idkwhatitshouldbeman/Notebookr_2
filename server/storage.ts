@@ -1,4 +1,4 @@
-import { type Notebook, type InsertNotebook, type Section, type InsertSection, type SectionVersion, type User, type InsertUser, notebooks, sections, sectionVersions, users } from "@shared/schema";
+import { type Notebook, type InsertNotebook, type Section, type InsertSection, type SectionVersion, type User, type InsertUser, type Message, type InsertMessage, notebooks, sections, sectionVersions, users, messages } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc } from "drizzle-orm";
 import session from "express-session";
@@ -34,6 +34,10 @@ export interface IStorage {
   // Section Versions
   getSectionVersions(sectionId: string): Promise<SectionVersion[]>;
   restoreSectionVersion(sectionId: string, versionId: string): Promise<Section | undefined>;
+  
+  // Messages
+  getMessagesByNotebookId(notebookId: string): Promise<Message[]>;
+  createMessage(message: InsertMessage): Promise<Message>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -161,6 +165,19 @@ export class DatabaseStorage implements IStorage {
 
     // Update the section with the version's content (this will also save current content as a new version)
     return await this.updateSection(sectionId, version.content);
+  }
+
+  // Messages
+  async getMessagesByNotebookId(notebookId: string): Promise<Message[]> {
+    return await db.select()
+      .from(messages)
+      .where(eq(messages.notebookId, notebookId))
+      .orderBy(asc(messages.createdAt));
+  }
+
+  async createMessage(insertMessage: InsertMessage): Promise<Message> {
+    const result = await db.insert(messages).values(insertMessage).returning();
+    return result[0];
   }
 }
 

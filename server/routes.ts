@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertNotebookSchema, insertSectionSchema } from "@shared/schema";
+import { insertNotebookSchema, insertSectionSchema, insertMessageSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupAuth, isAuthenticated } from "./auth";
 import { generateWithFallback } from "./ai-service";
@@ -137,6 +137,31 @@ export function registerRoutes(app: Express): Server {
       return res.status(404).json({ error: "Version not found" });
     }
     res.json(restored);
+  });
+
+  // Messages (chat history)
+  app.get("/api/notebooks/:notebookId/messages", isAuthenticated, async (req: any, res) => {
+    const userId = req.user.id;
+    const notebook = await storage.getNotebook(req.params.notebookId);
+    if (!notebook || notebook.userId !== userId) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const messages = await storage.getMessagesByNotebookId(req.params.notebookId);
+    res.json(messages);
+  });
+
+  app.post("/api/messages", isAuthenticated, async (req: any, res) => {
+    const result = insertMessageSchema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+    const notebook = await storage.getNotebook(result.data.notebookId);
+    const userId = req.user.id;
+    if (!notebook || notebook.userId !== userId) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const message = await storage.createMessage(result.data);
+    res.json(message);
   });
 
   // AI Generation - Three-phase workflow with planning
