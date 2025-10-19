@@ -46,6 +46,14 @@ export const sections = pgTable("sections", {
   orderIndex: text("order_index").notNull(),
 });
 
+export const messages = pgTable("messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  notebookId: varchar("notebook_id").notNull().references(() => notebooks.id, { onDelete: "cascade" }),
+  role: varchar("role").notNull(), // "user" or "assistant"
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const sectionVersions = pgTable("section_versions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   sectionId: varchar("section_id").notNull().references(() => sections.id, { onDelete: "cascade" }),
@@ -64,6 +72,11 @@ export const insertSectionSchema = createInsertSchema(sections).omit({
   id: true,
 });
 
+export const insertMessageSchema = createInsertSchema(messages).omit({
+  id: true,
+  createdAt: true,
+});
+
 // User schemas for authentication
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -77,4 +90,6 @@ export type InsertNotebook = z.infer<typeof insertNotebookSchema>;
 export type Notebook = typeof notebooks.$inferSelect;
 export type InsertSection = z.infer<typeof insertSectionSchema>;
 export type Section = typeof sections.$inferSelect;
+export type InsertMessage = z.infer<typeof insertMessageSchema>;
+export type Message = typeof messages.$inferSelect;
 export type SectionVersion = typeof sectionVersions.$inferSelect;
