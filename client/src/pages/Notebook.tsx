@@ -38,6 +38,7 @@ interface Message {
   role: "user" | "assistant" | "system";
   content: string;
   sectionTitle?: string;
+  sectionContent?: string; // Actual section content for expandable messages
   isExpandable?: boolean;
   expanded?: boolean;
 }
@@ -111,11 +112,25 @@ export default function Notebook() {
   useEffect(() => {
     if (loadedMessages && loadedMessages.length > 0) {
       // Add expanded: false for expandable messages (isExpandable is "true" string or null)
-      const messagesWithExpanded = loadedMessages.map(msg => ({
-        ...msg,
-        isExpandable: msg.isExpandable === "true",
-        expanded: msg.isExpandable === "true" ? false : undefined
-      }));
+      // For expandable messages, look up the current section content by title
+      const messagesWithExpanded = loadedMessages.map(msg => {
+        const isExpandable = msg.isExpandable === "true";
+        let sectionContent = undefined;
+        
+        if (isExpandable && msg.sectionTitle && sections.length > 0) {
+          const matchingSection = sections.find(s => s.title === msg.sectionTitle);
+          if (matchingSection) {
+            sectionContent = matchingSection.content;
+          }
+        }
+        
+        return {
+          ...msg,
+          isExpandable,
+          sectionContent,
+          expanded: isExpandable ? false : undefined
+        };
+      });
       setMessages(messagesWithExpanded);
     } else if (!messagesLoading && loadedMessages.length === 0) {
       // If no messages exist, show welcome message (but don't save it)
@@ -127,7 +142,7 @@ export default function Notebook() {
         }
       ]);
     }
-  }, [loadedMessages, messagesLoading]);
+  }, [loadedMessages, messagesLoading, sections]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -285,6 +300,26 @@ export default function Notebook() {
         })) : [];
         console.log(`📝 Fresh sections (iteration ${iterationCount}):`, currentSections);
         
+        // Check if ALL sections are green (>500 chars) - if so, stop immediately
+        const allSectionsGreen = currentSections.length > 0 && currentSections.every((s: any) => 
+          s.content && s.content.length > 500
+        );
+        if (allSectionsGreen) {
+          console.log("✅ All sections are green (>500 chars) - work is complete!");
+          const completionMsg: Message = {
+            id: `complete-${Date.now()}`,
+            role: "assistant",
+            content: "🎉 All sections are complete! Every chapter has substantial content."
+          };
+          setMessages(prev => [...prev, completionMsg]);
+          saveMessage.mutate({
+            notebookId: id!,
+            role: "assistant",
+            content: "🎉 All sections are complete! Every chapter has substantial content."
+          });
+          break; // Exit the loop immediately
+        }
+        
         // Track timing for this API call
         const apiStartTime = Date.now();
         const result = await generateAI.mutateAsync({ 
@@ -383,12 +418,13 @@ export default function Notebook() {
                   });
                   console.log(`✅ Updated section: ${targetSection.title}`);
                   
-                  // Add completion message to chat
+                  // Add completion message to chat (summary only - content is expandable)
                   const completionMsg: Message = {
                     id: `completion-${Date.now()}-${targetSection.id}`,
                     role: "system",
-                    content: action.content,
+                    content: `✅ Finished making: ${targetSection.title}`,
                     sectionTitle: targetSection.title,
+                    sectionContent: action.content, // Store content separately for expansion
                     isExpandable: true,
                     expanded: false
                   };
@@ -398,7 +434,7 @@ export default function Notebook() {
                   saveMessage.mutate({
                     notebookId: id!,
                     role: "assistant" as any,
-                    content: action.content,
+                    content: `✅ Finished making: ${targetSection.title}`,
                     sectionTitle: targetSection.title,
                     isExpandable: "true"
                   } as any);
@@ -435,12 +471,13 @@ export default function Notebook() {
                 createCount++;
                 console.log(`✅ Created new section: ${action.sectionId}`);
                 
-                // Add completion message to chat
+                // Add completion message to chat (summary only - content is expandable)
                 const completionMsg: Message = {
                   id: `completion-${Date.now()}-${newSection.id}`,
                   role: "system",
-                  content: action.content,
+                  content: `✅ Finished making: ${action.sectionId}`,
                   sectionTitle: action.sectionId,
+                  sectionContent: action.content, // Store content separately for expansion
                   isExpandable: true,
                   expanded: false
                 };
@@ -450,7 +487,7 @@ export default function Notebook() {
                 saveMessage.mutate({
                   notebookId: id!,
                   role: "assistant" as any,
-                  content: action.content,
+                  content: `✅ Finished making: ${action.sectionId}`,
                   sectionTitle: action.sectionId,
                   isExpandable: "true"
                 } as any);
@@ -673,16 +710,16 @@ export default function Notebook() {
                       data-testid={`system-message-${message.sectionTitle}`}
                     >
                       <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
-                        <span>Finished making: {message.sectionTitle}</span>
+                        <span>{message.content}</span>
                       </div>
-                      {message.expanded && (
+                      {message.expanded && message.sectionContent && (
                         <div className="mt-2 pt-2 border-t border-border text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground line-clamp-none">
-                          {message.content}
+                          {message.sectionContent}
                         </div>
                       )}
-                      {!message.expanded && message.content && (
-                        <div className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                          {message.content}
+                      {!message.expanded && (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Click to show content
                         </div>
                       )}
                     </Card>

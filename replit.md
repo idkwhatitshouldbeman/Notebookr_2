@@ -6,9 +6,14 @@ Notebookr is a free, AI-powered engineering notebook application designed to hel
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (October 19, 2025)
-- **Chat Message Persistence:** All chat messages (user prompts, AI responses, phase updates, errors) now persist across page reloads via Messages table. Loads automatically when revisiting notebooks. Excludes noisy system messages for cleaner chat history.
-- **413 Payload Error Fix:** Increased Express body parser limit from 100kb to 50mb to handle large document content during AI post-processing phase without "Payload Too Large" errors.
+## Recent Changes (October 20, 2025)
+- **Green Completion Messages:** Section completion messages now show as "✅ Finished making: [Section]" with expandable content. Messages persist in database and load on page reload. Chat only shows summary - actual content visible via click to expand.
+- **Fixed Chapter Counter:** Shows completed chapters/total (e.g., 8/12) instead of task progress. Counts chapters with >500 chars as complete.
+- **Colored Status Indicators:** Each chapter displays status dot: 🔴 red (<100 chars), 🟡 yellow (100-500 chars), 🟢 green (>500 chars).
+- **Removed Iteration Limit:** AI runs indefinitely until marking work complete, with early exit when all sections are green (>500 chars).
+- **Responsive Chapter Panel:** Expands on larger screens: base 320px (w-80), lg 384px, xl 448px, 2xl 512px.
+- **Specific Task Messages:** Shows "✍️ Writing [Section]... (X/Y completed)" instead of generic "Executing tasks...".
+- **Detailed Timing Logs:** Each API request duration displayed in chat (e.g., "⏱️ API request completed in 5.23s") and persisted to database.
 
 ## System Architecture
 
