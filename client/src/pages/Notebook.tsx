@@ -110,7 +110,13 @@ export default function Notebook() {
   // Load messages from database
   useEffect(() => {
     if (loadedMessages && loadedMessages.length > 0) {
-      setMessages(loadedMessages);
+      // Add expanded: false for expandable messages (isExpandable is "true" string or null)
+      const messagesWithExpanded = loadedMessages.map(msg => ({
+        ...msg,
+        isExpandable: msg.isExpandable === "true",
+        expanded: msg.isExpandable === "true" ? false : undefined
+      }));
+      setMessages(messagesWithExpanded);
     } else if (!messagesLoading && loadedMessages.length === 0) {
       // If no messages exist, show welcome message (but don't save it)
       setMessages([
@@ -265,9 +271,8 @@ export default function Notebook() {
       let aiMemory: any = persistedAiMemory || undefined; // Use persisted memory if available
       let isComplete = false;
       let iterationCount = 0;
-      const maxIterations = 50; // Frontend safety limit (backend has its own at 10)
-      
-      while (!isComplete && iterationCount < maxIterations) {
+      // No iteration limit - run until AI marks complete
+      while (!isComplete) {
         iterationCount++;
         
         // Always fetch fresh sections before calling AI
@@ -280,13 +285,33 @@ export default function Notebook() {
         })) : [];
         console.log(`📝 Fresh sections (iteration ${iterationCount}):`, currentSections);
         
+        // Track timing for this API call
+        const apiStartTime = Date.now();
         const result = await generateAI.mutateAsync({ 
           instruction: iterationCount === 1 ? instruction : "", // Send instruction on first iteration only
           notebookId: id!, 
           sections: currentSections,
           aiMemory
         });
+        const apiEndTime = Date.now();
+        const apiDuration = ((apiEndTime - apiStartTime) / 1000).toFixed(2);
         console.log(`✅ AI Response (iteration ${iterationCount}):`, result);
+        console.log(`⏱️ API call took ${apiDuration}s`);
+        
+        // Add timing message to chat
+        const timingMessage: Message = {
+          id: `timing-${Date.now()}`,
+          role: "assistant",
+          content: `⏱️ API request completed in ${apiDuration}s`
+        };
+        setMessages(prev => [...prev, timingMessage]);
+        
+        // Save timing message to database
+        saveMessage.mutate({
+          notebookId: id!,
+          role: "assistant",
+          content: `⏱️ API request completed in ${apiDuration}s`
+        });
         
         // Update phase and plan
         const previousPhase = aiPhase;
@@ -304,7 +329,8 @@ export default function Notebook() {
             const incompleteTasks = result.plan?.tasks?.filter((t: any) => !t.done) || [];
             const totalTasks = result.plan?.tasks?.length || 0;
             const completedTasks = totalTasks - incompleteTasks.length;
-            phaseMessage = `⚡ Executing tasks... (${completedTasks}/${totalTasks} completed)`;
+            const currentTask = incompleteTasks[0]?.description || "working on tasks";
+            phaseMessage = `✍️ ${currentTask}... (${completedTasks}/${totalTasks} completed)`;
           } else if (result.phase === "review") {
             phaseMessage = "🔍 Reviewing work quality...";
           }
@@ -368,6 +394,15 @@ export default function Notebook() {
                   };
                   setMessages(prev => [...prev, completionMsg]);
                   
+                  // Save completion message to database (use assistant role for compatibility)
+                  saveMessage.mutate({
+                    notebookId: id!,
+                    role: "assistant" as any,
+                    content: action.content,
+                    sectionTitle: targetSection.title,
+                    isExpandable: "true"
+                  } as any);
+                  
                   // Clear the highlight after 2 seconds
                   setTimeout(() => {
                     setRecentlyUpdatedSections(prev => {
@@ -410,6 +445,15 @@ export default function Notebook() {
                   expanded: false
                 };
                 setMessages(prev => [...prev, completionMsg]);
+                
+                // Save completion message to database (use assistant role for compatibility)
+                saveMessage.mutate({
+                  notebookId: id!,
+                  role: "assistant" as any,
+                  content: action.content,
+                  sectionTitle: action.sectionId,
+                  isExpandable: "true"
+                } as any);
                 
                 // Highlight new section
                 if (newSection?.id) {
@@ -476,11 +520,8 @@ export default function Notebook() {
       setPersistedAiMemory(null); // Clear memory to avoid stale context
       setProcessingStartTime(null); // Stop tracking time
       
-      // Determine completion message
+      // Completion message
       let completionMessage = "Document complete! ✨";
-      if (iterationCount >= maxIterations) {
-        completionMessage = "Reached iteration limit. The document may need more work.";
-      }
       
       // Add final AI message to chat
       const aiMessage: Message = {
@@ -746,7 +787,7 @@ export default function Notebook() {
       )}
 
       {!isExpanded && (
-        <div className="w-80 p-4 bg-card overflow-auto">
+        <div className="w-80 lg:w-96 xl:w-[28rem] 2xl:w-[32rem] p-4 bg-card overflow-auto">
         {currentPlan && currentPlan.variables && (
           <Accordion type="single" collapsible className="mb-4" value={isContextOpen} onValueChange={setIsContextOpen}>
             <AccordionItem value="context" className="border rounded-lg px-3">
@@ -791,9 +832,9 @@ export default function Notebook() {
             <h3 className="font-semibold text-sm text-foreground">Chapters</h3>
           </div>
           <div className="flex items-center gap-2">
-            {!isContextOpen && currentPlan?.tasks && (
+            {!isContextOpen && sections.length > 0 && (
               <Badge variant="secondary" className="text-xs px-2 py-0.5" data-testid="progress-indicator">
-                {currentPlan.tasks.filter((t: any) => t.done).length}/{currentPlan.tasks.length}
+                {sections.filter(s => s.content && s.content.length > 500).length}/{sections.length}
               </Badge>
             )}
             <Button
@@ -822,6 +863,13 @@ export default function Notebook() {
                 data-testid={`chapter-link-${section.title.toLowerCase()}`}
               >
                 <div className="font-medium text-foreground text-sm mb-1 flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${
+                    !section.content || section.content.length < 100 
+                      ? 'bg-red-500' 
+                      : section.content.length < 500 
+                      ? 'bg-yellow-500' 
+                      : 'bg-green-500'
+                  }`} />
                   {index + 1}. {section.title}
                   {editingSections.has(section.id) && (
                     <Sparkles className="h-3 w-3 text-primary animate-spin" />
