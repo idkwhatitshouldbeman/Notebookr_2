@@ -279,7 +279,7 @@ export default function Notebook() {
     setInput("");
     
     try {
-      console.log("🤖 AI is editing notebook...");
+      console.log("AI is editing notebook...");
       setProcessingStartTime(Date.now()); // Start tracking time
       
       // Keep calling AI until complete
@@ -313,8 +313,8 @@ export default function Notebook() {
         });
         const apiEndTime = Date.now();
         const apiDuration = ((apiEndTime - apiStartTime) / 1000).toFixed(2);
-        console.log(`✅ AI Response (iteration ${iterationCount}):`, result);
-        console.log(`⏱️ API call took ${apiDuration}s`);
+        console.log(`AI Response (iteration ${iterationCount}):`, result);
+        console.log(`API call took ${apiDuration}s`);
         
         // Add timing message to chat
         const timingMessage: Message = {
@@ -384,11 +384,11 @@ export default function Notebook() {
           for (const action of result.actions) {
             // Validate action has required fields
             if (!action.type || !action.sectionId || action.content === undefined) {
-              console.warn(`⚠️ Skipping invalid action:`, action);
+              console.warn(`Skipping invalid action:`, action);
               continue;
             }
 
-            console.log(`🔧 Applying action: ${action.type} on ${action.sectionId}`);
+            console.log(`Applying action: ${action.type} on ${action.sectionId}`);
             
             if (action.type === "update") {
               // Find the section and update it
@@ -401,7 +401,7 @@ export default function Notebook() {
                     sectionId: action.sectionId, 
                     content: action.content 
                   });
-                  console.log(`✅ Updated section: ${targetSection.title}`);
+                  console.log(`Updated section: ${targetSection.title}`);
                   
                   // Add completion message to chat (summary only - content is expandable)
                   const completionMsg: Message = {
@@ -442,7 +442,7 @@ export default function Notebook() {
                   });
                 }
               } else {
-                console.warn(`⚠️ Section ${action.sectionId} not found for update`);
+                console.warn(`Section ${action.sectionId} not found for update`);
               }
             } else if (action.type === "create") {
               // Create new section with unique orderIndex
@@ -454,7 +454,7 @@ export default function Notebook() {
                   orderIndex: String(sections.length + createCount)
                 });
                 createCount++;
-                console.log(`✅ Created new section: ${action.sectionId}`);
+                console.log(`Created new section: ${action.sectionId}`);
                 
                 // Add completion message to chat (summary only - content is expandable)
                 const completionMsg: Message = {
@@ -504,12 +504,12 @@ export default function Notebook() {
         
         // Break conditions
         if (isComplete) {
-          console.log("✅ AI reports work is complete");
+          console.log("AI reports work is complete");
           break;
         }
         
         if (!result.shouldContinue) {
-          console.warn("⚠️ AI paused (may have questions or need user input)");
+          console.warn("AI paused (may have questions or need user input)");
           // Persist AI memory so user's answer can resume the flow
           setPersistedAiMemory(result.aiMemory || aiMemory);
           // Use the AI's actual message (may contain questions)
