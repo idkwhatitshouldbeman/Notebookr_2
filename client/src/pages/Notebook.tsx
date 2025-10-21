@@ -300,34 +300,8 @@ export default function Notebook() {
         })) : [];
         console.log(`📝 Fresh sections (iteration ${iterationCount}):`, currentSections);
         
-        // Check if ALL sections are green (>500 chars) AND we have all planned sections
-        // Only exit early if:
-        // 1. We have a plan with expected sections
-        // 2. All those sections have been created
-        // 3. All sections are green (>500 chars)
-        if (aiMemory?.plan?.requiredSections) {
-          const expectedSectionCount = aiMemory.plan.requiredSections.length;
-          const allSectionsCreated = currentSections.length >= expectedSectionCount;
-          const allSectionsGreen = currentSections.length > 0 && currentSections.every((s: any) => 
-            s.content && s.content.length > 500
-          );
-          
-          if (allSectionsCreated && allSectionsGreen) {
-            console.log(`✅ All ${currentSections.length} planned sections are green (>500 chars) - work is complete!`);
-            const completionMsg: Message = {
-              id: `complete-${Date.now()}`,
-              role: "assistant",
-              content: "All sections are complete! Every chapter has substantial content."
-            };
-            setMessages(prev => [...prev, completionMsg]);
-            saveMessage.mutate({
-              notebookId: id!,
-              role: "assistant",
-              content: "All sections are complete! Every chapter has substantial content."
-            });
-            break; // Exit the loop immediately
-          }
-        }
+        // Let AI service determine completion through its review/postprocess phases
+        // Don't early-exit - trust the AI workflow to complete properly
         
         // Track timing for this API call
         const apiStartTime = Date.now();
@@ -879,7 +853,7 @@ export default function Notebook() {
           <div className="flex items-center gap-2">
             {!isContextOpen && sections.length > 0 && (
               <Badge variant="secondary" className="text-xs px-2 py-0.5" data-testid="progress-indicator">
-                {sections.filter(s => s.content && s.content.length > 500).length}/{sections.length}
+                {sections.filter(s => s.content && s.content.length >= 500).length}/{sections.length}
               </Badge>
             )}
             <Button
