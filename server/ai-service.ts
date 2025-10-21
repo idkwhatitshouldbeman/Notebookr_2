@@ -117,7 +117,7 @@ interface ThreePhaseRequest {
 }
 
 interface ThreePhaseResponse {
-  phase: "plan" | "execute" | "review";
+  phase: "plan" | "create" | "execute" | "review" | "postprocess" | "finalreview";
   actions: Array<{
     type: "update" | "create";
     sectionId: string;
@@ -185,7 +185,9 @@ Extract variables and create a plan in JSON format:
 
 IMPORTANT: 
 - Extract page/length info from instruction (e.g., "20 page" → targetLength: "20 pages", estimatedSections: 15-20)
-- If unsure about anything, set hasQuestions: true and add to questions array
+- **BE CRITICAL**: If the instruction is vague, missing details, or you need clarification, set hasQuestions: true
+- Ask about: specific requirements, depth of coverage, target audience, technical level, special formatting, etc.
+- If instruction is clear and detailed, proceed with hasQuestions: false
 - Create tasks for ALL sections, aiming for comprehensive coverage
 - Default to creating LONGER, DETAILED documents unless specified otherwise`;
 

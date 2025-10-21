@@ -317,13 +317,13 @@ export default function Notebook() {
             const completionMsg: Message = {
               id: `complete-${Date.now()}`,
               role: "assistant",
-              content: "🎉 All sections are complete! Every chapter has substantial content."
+              content: "All sections are complete! Every chapter has substantial content."
             };
             setMessages(prev => [...prev, completionMsg]);
             saveMessage.mutate({
               notebookId: id!,
               role: "assistant",
-              content: "🎉 All sections are complete! Every chapter has substantial content."
+              content: "All sections are complete! Every chapter has substantial content."
             });
             break; // Exit the loop immediately
           }
@@ -346,7 +346,7 @@ export default function Notebook() {
         const timingMessage: Message = {
           id: `timing-${Date.now()}`,
           role: "assistant",
-          content: `⏱️ API request completed in ${apiDuration}s`
+          content: `API request completed in ${apiDuration}s`
         };
         setMessages(prev => [...prev, timingMessage]);
         
@@ -354,7 +354,7 @@ export default function Notebook() {
         saveMessage.mutate({
           notebookId: id!,
           role: "assistant",
-          content: `⏱️ API request completed in ${apiDuration}s`
+          content: `API request completed in ${apiDuration}s`
         });
         
         // Update phase and plan
@@ -368,15 +368,17 @@ export default function Notebook() {
         if (result.phase && result.phase !== previousPhase) {
           let phaseMessage = "";
           if (result.phase === "plan") {
-            phaseMessage = "📋 Planning document structure...";
+            phaseMessage = "Planning document structure...";
           } else if (result.phase === "execute") {
             const incompleteTasks = result.plan?.tasks?.filter((t: any) => !t.done) || [];
             const totalTasks = result.plan?.tasks?.length || 0;
             const completedTasks = totalTasks - incompleteTasks.length;
             const currentTask = incompleteTasks[0]?.description || "working on tasks";
-            phaseMessage = `✍️ ${currentTask}... (${completedTasks}/${totalTasks} completed)`;
+            phaseMessage = `${currentTask}... (${completedTasks}/${totalTasks} completed)`;
           } else if (result.phase === "review") {
-            phaseMessage = "🔍 Reviewing work quality...";
+            phaseMessage = "Reviewing work quality...";
+          } else if (result.phase === "postprocess") {
+            phaseMessage = "Humanizing content...";
           }
           
           if (phaseMessage) {
@@ -431,7 +433,7 @@ export default function Notebook() {
                   const completionMsg: Message = {
                     id: `completion-${Date.now()}-${targetSection.id}`,
                     role: "system",
-                    content: `✅ Finished making: ${targetSection.title}`,
+                    content: `Finished making: ${targetSection.title}`,
                     sectionTitle: targetSection.title,
                     sectionContent: action.content, // Store content separately for expansion
                     isExpandable: true,
@@ -443,7 +445,7 @@ export default function Notebook() {
                   saveMessage.mutate({
                     notebookId: id!,
                     role: "assistant" as any,
-                    content: `✅ Finished making: ${targetSection.title}`,
+                    content: `Finished making: ${targetSection.title}`,
                     sectionTitle: targetSection.title,
                     isExpandable: "true"
                   } as any);
@@ -484,7 +486,7 @@ export default function Notebook() {
                 const completionMsg: Message = {
                   id: `completion-${Date.now()}-${newSection.id}`,
                   role: "system",
-                  content: `✅ Finished making: ${action.sectionId}`,
+                  content: `Finished making: ${action.sectionId}`,
                   sectionTitle: action.sectionId,
                   sectionContent: action.content, // Store content separately for expansion
                   isExpandable: true,
@@ -496,7 +498,7 @@ export default function Notebook() {
                 saveMessage.mutate({
                   notebookId: id!,
                   role: "assistant" as any,
-                  content: `✅ Finished making: ${action.sectionId}`,
+                  content: `Finished making: ${action.sectionId}`,
                   sectionTitle: action.sectionId,
                   isExpandable: "true"
                 } as any);
@@ -835,35 +837,32 @@ export default function Notebook() {
       {!isExpanded && (
         <div className="w-80 lg:w-96 xl:w-[28rem] 2xl:w-[32rem] p-4 bg-card overflow-auto">
         {currentPlan && currentPlan.variables && (
-          <Accordion type="single" collapsible className="mb-4" value={isContextOpen} onValueChange={setIsContextOpen}>
-            <AccordionItem value="context" className="border rounded-lg px-3">
-              <AccordionTrigger className="text-sm font-semibold hover:no-underline py-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  Document Context
+          <Accordion type="single" collapsible className="mb-3" value={isContextOpen} onValueChange={setIsContextOpen}>
+            <AccordionItem value="context" className="border rounded-lg px-2">
+              <AccordionTrigger className="text-xs font-semibold hover:no-underline py-2">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3 text-primary" />
+                  Context
                 </div>
               </AccordionTrigger>
               <AccordionContent>
-                <div className="space-y-2 pb-2">
-                  {Object.entries(currentPlan.variables).map(([key, value]: [string, any]) => {
-                    if (!value || (Array.isArray(value) && value.length === 0)) return null;
-                    
-                    const displayKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                    const displayValue = Array.isArray(value) ? value.join(', ') : String(value);
-                    
-                    return (
-                      <div key={key} className="text-xs p-2 rounded-md bg-accent/50">
-                        <div className="font-medium text-foreground">{displayKey}</div>
-                        <div className="text-muted-foreground mt-1">{displayValue}</div>
-                      </div>
-                    );
-                  })}
-                  {currentPlan.tasks && (
-                    <div className="text-xs p-2 rounded-md bg-primary/10 mt-2">
-                      <div className="font-medium text-foreground">Progress</div>
-                      <div className="text-muted-foreground mt-1">
-                        {currentPlan.tasks.filter((t: any) => t.done).length} / {currentPlan.tasks.length} sections complete
-                      </div>
+                <div className="space-y-1 pb-1.5 text-xs">
+                  {currentPlan.variables.topic && (
+                    <div className="flex gap-1.5">
+                      <span className="font-medium text-muted-foreground">Topic:</span>
+                      <span className="text-foreground">{currentPlan.variables.topic}</span>
+                    </div>
+                  )}
+                  {currentPlan.variables.targetLength && (
+                    <div className="flex gap-1.5">
+                      <span className="font-medium text-muted-foreground">Length:</span>
+                      <span className="text-foreground">{currentPlan.variables.targetLength}</span>
+                    </div>
+                  )}
+                  {currentPlan.variables.documentType && (
+                    <div className="flex gap-1.5">
+                      <span className="font-medium text-muted-foreground">Type:</span>
+                      <span className="text-foreground">{currentPlan.variables.documentType}</span>
                     </div>
                   )}
                 </div>
