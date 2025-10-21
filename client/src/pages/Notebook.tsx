@@ -114,7 +114,7 @@ export default function Notebook() {
       // Add expanded: false for expandable messages (isExpandable is "true" string or null)
       // For expandable messages, look up the current section content by title
       const messagesWithExpanded = loadedMessages.map(msg => {
-        const isExpandable = msg.isExpandable === "true";
+        const isExpandable = (msg.isExpandable as any) === "true";
         let sectionContent = undefined;
         
         if (isExpandable && msg.sectionTitle && sections.length > 0) {
