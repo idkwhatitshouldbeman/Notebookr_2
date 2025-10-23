@@ -156,61 +156,56 @@ export async function threePhaseGeneration(
   if (!aiMemory || !aiMemory.plan) {
     console.log("📋 Phase 1: Planning document structure...");
     
-    const planningPrompt = `You are an AI document architect. Analyze the user's instruction and determine if you have ALL the information needed to create a comprehensive document.
+    const planningPrompt = `Analyze this instruction and decide: Do you have enough detail to proceed, or do you need to ask clarifying questions?
 
-INSTRUCTION: ${instruction}
+INSTRUCTION: "${instruction}"
 
-CURRENT SECTIONS: ${sections.map(s => s.title).join(", ") || "None"}
+PATTERN MATCHING RULES:
 
-**CRITICAL DECISION: Should you ask questions?**
+1. Check if instruction contains SPECIFIC document type keywords:
+   - Contains "research paper", "lab report", "essay", "guide", "blog post", "documentation"? → FORMAT ✓
+   - Just says "document", "paper", "write about"? → FORMAT ✗
 
-Ask yourself these questions about the instruction:
-1. FORMAT: Is the document type specified? (research paper, blog post, guide, lab report, essay, etc.)
-2. LENGTH: Is the target length clear? (number of pages, word count, "short", "detailed", etc.)
-3. SCOPE: Is the specific focus/angle clear? (which aspect of the topic to cover?)
-4. AUDIENCE: Is the target audience specified? (students, professionals, general public, etc.)
-5. TONE: Is the writing style specified? (academic, casual, technical, etc.)
-6. REQUIREMENTS: Are there any special constraints or requirements mentioned?
+2. Check if instruction specifies LENGTH:
+   - Contains number + "page/pages", "section/sections", "words", OR "short/long/detailed"? → LENGTH ✓
+   - No length mentioned? → LENGTH ✗
 
-**IF EVEN ONE OF THESE IS UNCLEAR OR MISSING**: Set hasQuestions: true and ask specific questions!
+3. Check if instruction specifies SPECIFIC TOPIC/SCOPE:
+   - Contains detailed topic like "bird migration patterns", "React hooks", "thermal conductivity"? → SCOPE ✓
+   - Generic like "birds", "coding", "science"? → SCOPE ✗
 
-Examples of VAGUE instructions that REQUIRE questions:
-- "write about birds" → ASK: What format? How long? Which aspect of birds? Target audience?
-- "i need a paper on machine learning" → ASK: What type of paper? How many pages? Which ML topics? What depth?
-- "create a document about cooking" → ASK: Recipe collection? Guide? Essay? How long? Which cuisine?
+4. Check if instruction specifies TARGET AUDIENCE:
+   - Contains "for [audience]" like "for students", "for developers", "for beginners"? → AUDIENCE ✓
+   - No audience mentioned? → AUDIENCE ✗
 
-Examples of CLEAR instructions (no questions needed):
-- "write a 10-page academic research paper on bird migration patterns for college students"
-- "create a 5-section technical guide on React hooks for professional developers"
+DECISION:
+- If instruction has ALL 4 checkmarks (FORMAT ✓, LENGTH ✓, SCOPE ✓, AUDIENCE ✓): hasQuestions = false
+- If instruction is MISSING ANY checkmark: hasQuestions = true
 
-Return JSON in this exact format:
+EXAMPLES:
+❌ "i want a paper about birds" → FORMAT ✗, LENGTH ✗, SCOPE ✗, AUDIENCE ✗ → hasQuestions: true
+❌ "write about React" → FORMAT ✗, LENGTH ✗, SCOPE ✗, AUDIENCE ✗ → hasQuestions: true
+✅ "write a 5-page academic research paper on bird migration patterns for college biology students" → FORMAT ✓, LENGTH ✓, SCOPE ✓, AUDIENCE ✓ → hasQuestions: false
+✅ "create a 3-section technical guide on useState hook for React developers" → FORMAT ✓, LENGTH ✓, SCOPE ✓, AUDIENCE ✓ → hasQuestions: false
+
+Return JSON:
 {
   "variables": {
-    "topic": "main subject from instruction",
-    "targetLength": "ONLY if clearly specified (e.g., '5 pages', '10 sections'). Otherwise set to null",
-    "estimatedSections": "number only if targetLength is specified, otherwise null",
-    "documentType": "ONLY if specified, otherwise null",
-    "tone": "ONLY if specified, otherwise null",
-    "focusAreas": ["ONLY specific topics mentioned, empty array if vague"],
-    "targetAudience": "ONLY if specified, otherwise null",
-    "criteria": "special instructions if any, otherwise null",
-    "hasQuestions": true
+    "topic": "main subject",
+    "targetLength": "5 pages OR 3 sections OR null if not specified",
+    "documentType": "research paper OR guide OR null",
+    "focusAreas": ["specific topics OR empty"],
+    "targetAudience": "who this is for OR null",
+    "hasQuestions": false
   },
-  "questions": [
-    "What format would you like? (e.g., research paper, blog post, guide, essay)",
-    "How long should this be? (e.g., number of pages, sections, or word count)",
-    "Which specific aspect of [topic] should I focus on?",
-    "Who is the target audience?",
-    "What tone/style should I use? (e.g., academic, casual, technical)",
-    "Any special requirements or constraints?"
-  ],
-  "suggestedTitle": "title based on topic",
-  "requiredSections": [],
-  "tasks": [],
-  "overallGoal": "create comprehensive document on [topic]"
+  "questions": [],
+  "suggestedTitle": "title",
+  "requiredSections": ["section1", "section2"],
+  "tasks": [{"action": "create", "section": "section1", "description": "write about X", "done": false}]
 }
 
-**ONLY set hasQuestions: false if the instruction is EXTREMELY detailed and answers ALL 6 questions above.**`;
+If hasQuestions is true, include questions array asking about missing checkmarks.
+If hasQuestions is false, questions must be empty array [] and you MUST populate requiredSections and tasks.`;
 
     const planResult = await generateWithFallback({
       messages: [
@@ -264,7 +259,18 @@ Return JSON in this exact format:
     });
 
     // Check if AI has questions for the user
-    if (plan.variables?.hasQuestions && plan.questions?.length > 0) {
+    if (plan.variables?.hasQuestions) {
+      // Edge case: hasQuestions=true but no questions array
+      if (!plan.questions || plan.questions.length === 0) {
+        console.warn("⚠️ AI set hasQuestions=true but provided no questions - using default questions");
+        plan.questions = [
+          "What format would you like? (e.g., research paper, blog post, guide)",
+          "How long should this be? (e.g., number of pages or sections)",
+          "What specific aspect should I focus on?",
+          "Who is the target audience?"
+        ];
+      }
+      
       console.log("❓ AI has questions - pausing for user input");
       console.log("Questions:", plan.questions);
       const updatedMemory = { plan, currentPhase: "awaiting_answers" };
@@ -302,16 +308,35 @@ Return JSON in this exact format:
     console.log("💬 User answered questions, updating plan...");
     
     const plan = aiMemory.plan;
-    const updatePrompt = `The user was asked questions and responded with: "${instruction}"
+    const updatePrompt = `User answered your questions with: "${instruction}"
 
-CURRENT PLAN VARIABLES:
-${JSON.stringify(plan.variables, null, 2)}
+ORIGINAL TOPIC: ${plan.variables?.topic || 'document'}
 
-Update the variables with the user's response and set hasQuestions to false. Return the updated plan in the same JSON format.`;
+Update the plan with the new information. Return complete JSON with:
+{
+  "variables": {
+    "topic": "updated topic",
+    "targetLength": "extract from answer (e.g., '5 pages')",
+    "documentType": "extract type (e.g., 'research paper')",
+    "targetAudience": "extract audience (e.g., 'college students')",
+    "focusAreas": ["specific topics"],
+    "hasQuestions": false
+  },
+  "questions": [],
+  "suggestedTitle": "clear title",
+  "requiredSections": ["section1", "section2", "section3"],
+  "tasks": [
+    {"action": "create", "section": "section1", "description": "write about X", "done": false},
+    {"action": "create", "section": "section2", "description": "write about Y", "done": false}
+  ],
+  "overallGoal": "create document"
+}
+
+CRITICAL: You MUST include requiredSections array and tasks array. Set hasQuestions to false since user answered.`;
 
     const updateResult = await generateWithFallback({
       messages: [
-        { role: "system", content: "You are a document planning expert. Update the plan variables based on user input. You MUST respond with ONLY valid JSON." },
+        { role: "system", content: "You are a document planning expert. You MUST respond with ONLY valid JSON with requiredSections and tasks arrays populated." },
         { role: "user", content: updatePrompt }
       ],
       temperature: 0.3,
@@ -349,6 +374,31 @@ Update the variables with the user's response and set hasQuestions to false. Ret
     console.log("⚡ Phase 2: Executing tasks...");
     
     const plan = aiMemory.plan;
+    
+    // Safety check: ensure tasks array exists
+    if (!plan.tasks || !Array.isArray(plan.tasks)) {
+      console.error("❌ Plan is missing tasks array:", plan);
+      // Create default tasks from requiredSections if they exist
+      if (plan.requiredSections && Array.isArray(plan.requiredSections) && plan.requiredSections.length > 0) {
+        plan.tasks = plan.requiredSections.map((section: string) => ({
+          action: "create",
+          section,
+          description: `Write comprehensive content for ${section}`,
+          done: false
+        }));
+        console.log("✅ Generated tasks from requiredSections:", plan.tasks);
+      } else {
+        // No tasks and no sections - fallback to generic task
+        plan.tasks = [{
+          action: "create",
+          section: "Content",
+          description: instruction,
+          done: false
+        }];
+        console.log("⚠️ Using fallback task");
+      }
+    }
+    
     const incompleteTasks = plan.tasks.filter((t: any) => !t.done);
     const nextTask = incompleteTasks[0];
 
