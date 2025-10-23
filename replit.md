@@ -6,7 +6,14 @@ Notebookr is a free, AI-powered engineering notebook application designed to hel
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (October 20, 2025)
+## Recent Changes (October 23, 2025)
+- **Aggressive Clarifying Questions System:** Planning now uses 4 clear pattern-matching checkpoints (FORMAT, LENGTH, SCOPE, AUDIENCE) to decide whether to ask clarifying questions. If ANY checkpoint missing from user prompt → ask questions. If ALL present → proceed to execution. Replaces previous vague "evaluate if detailed enough" approach.
+- **Safety Guards for Missing Tasks:** Added null checks for `plan.tasks` array with fallback task generation from `requiredSections` or default task. Prevents crashes during execution phase.
+- **Enhanced Question Handling:** If AI sets `hasQuestions=true` but provides no questions array, system uses default questions (format, length, focus, audience). Prevents edge case where user gets no questions.
+- **Improved Awaiting Answers:** When user answers questions, prompt now explicitly requires AI to generate `requiredSections` and `tasks` arrays before proceeding to execution.
+- **Comprehensive Logging:** Added detailed logs throughout planning process for debugging question-asking behavior and task generation.
+
+## Previous Changes (October 20, 2025)
 - **Green Completion Messages:** Section completion messages now show as "✅ Finished making: [Section]" with expandable content. Messages persist in database and load on page reload. Chat only shows summary - actual content visible via click to expand.
 - **Fixed Chapter Counter:** Shows completed chapters/total (e.g., 8/12) instead of task progress. Counts chapters with >500 chars as complete.
 - **Colored Status Indicators:** Each chapter displays status dot: 🔴 red (<100 chars), 🟡 yellow (100-500 chars), 🟢 green (>500 chars).
@@ -31,13 +38,14 @@ Preferred communication style: Simple, everyday language.
 
 ### AI System
 - **Four-Phase AI Workflow:** Plan → Execute → Review → Post-Process.
-    - **Planning:** Extracts variables (topic, length, tone, criteria) from user instructions and creates a document plan. Can ask clarifying questions.
-    - **Execution:** Processes one task per call, generating/updating sections.
+    - **Planning:** Uses 4-checkpoint pattern matching (FORMAT, LENGTH, SCOPE, AUDIENCE) to evaluate user instructions. If all checkpoints present → proceed to execution. If any missing → ask clarifying questions. Extracts variables (topic, length, tone, criteria) and creates document plan with tasks and required sections.
+    - **Execution:** Processes one task per call, generating/updating sections. Safety guards ensure tasks array always exists, with fallback generation from requiredSections.
     - **Review:** Evaluates content quality and completeness.
     - **Post-Process:** Transparently checks and fixes content to avoid AI detection patterns, enhancing human-like qualities.
 - **AI Memory System:** `notebook.aiMemory` stores TODO lists and document plans for persistent context.
 - **AI Detection Avoidance:** Post-processing phase specifically targets and mitigates AI detection patterns.
 - **Version History:** Automatic snapshots of sections before updates with restore functionality.
+- **Question Handling:** Default questions provided if AI fails to generate questions. Awaiting answers phase regenerates full plan with tasks and sections.
 
 ## External Dependencies
 
