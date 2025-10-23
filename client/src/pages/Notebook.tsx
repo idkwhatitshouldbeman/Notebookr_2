@@ -338,39 +338,8 @@ export default function Notebook() {
           setCurrentPlan(result.plan);
         }
         
-        // Add phase change messages to chat
-        if (result.phase && result.phase !== previousPhase) {
-          let phaseMessage = "";
-          if (result.phase === "plan") {
-            phaseMessage = "Planning document structure...";
-          } else if (result.phase === "execute") {
-            const incompleteTasks = result.plan?.tasks?.filter((t: any) => !t.done) || [];
-            const totalTasks = result.plan?.tasks?.length || 0;
-            const completedTasks = totalTasks - incompleteTasks.length;
-            const currentTask = incompleteTasks[0]?.description || "working on tasks";
-            phaseMessage = `${currentTask}... (${completedTasks}/${totalTasks} completed)`;
-          } else if (result.phase === "review") {
-            phaseMessage = "Reviewing work quality...";
-          } else if (result.phase === "postprocess") {
-            phaseMessage = "Humanizing content...";
-          }
-          
-          if (phaseMessage) {
-            const phaseMsg: Message = {
-              id: `phase-${Date.now()}`,
-              role: "assistant",
-              content: phaseMessage
-            };
-            setMessages(prev => [...prev, phaseMsg]);
-            
-            // Save phase message to database
-            saveMessage.mutate({
-              notebookId: id!,
-              role: "assistant",
-              content: phaseMessage
-            });
-          }
-        }
+        // Update phase without showing messages
+        // (Phase indicator is shown in the UI status bar instead)
         
         // Auto-generate title if it's still "Untitled Notebook" and AI suggested a title
         if (notebook?.title === "Untitled Notebook" && result.suggestedTitle) {

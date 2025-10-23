@@ -218,7 +218,8 @@ export function registerRoutes(app: Express): Server {
         suggestedTitle: threePhaseResult.suggestedTitle
       });
     } catch (error) {
-      console.error("AI generation error:", error);
+      console.error("❌ AI generation error (full details):", error);
+      console.error("Error stack:", (error as Error)?.stack);
       res.status(500).json({ error: "Failed to generate content" });
     }
   });
