@@ -340,17 +340,28 @@ CRITICAL: You MUST include requiredSections array and tasks array. Set hasQuesti
         { role: "user", content: updatePrompt }
       ],
       temperature: 0.3,
-      max_tokens: 1500,
+      max_tokens: 2500,
     });
 
     let updatedPlan;
     try {
       updatedPlan = JSON.parse(updateResult.content);
-    } catch {
+      console.log("✅ Successfully parsed updated plan from user answers");
+    } catch (parseError) {
+      console.warn("⚠️ Failed to parse JSON directly, trying code block extraction...");
+      console.log("Raw content:", updateResult.content);
       const jsonMatch = updateResult.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
       if (jsonMatch) {
-        updatedPlan = JSON.parse(jsonMatch[1]);
+        try {
+          updatedPlan = JSON.parse(jsonMatch[1]);
+          console.log("✅ Successfully parsed plan from code block");
+        } catch (codeBlockError) {
+          console.error("❌ Failed to parse JSON from code block:", codeBlockError);
+          console.log("Using fallback plan");
+          updatedPlan = { ...plan, variables: { ...plan.variables, hasQuestions: false } };
+        }
       } else {
+        console.warn("⚠️ No JSON code block found, using fallback plan");
         updatedPlan = { ...plan, variables: { ...plan.variables, hasQuestions: false } };
       }
     }
