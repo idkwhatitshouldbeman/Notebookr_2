@@ -156,40 +156,61 @@ export async function threePhaseGeneration(
   if (!aiMemory || !aiMemory.plan) {
     console.log("📋 Phase 1: Planning document structure...");
     
-    const planningPrompt = `You are an AI document architect. Analyze this instruction and extract key variables, then create a comprehensive plan.
+    const planningPrompt = `You are an AI document architect. Analyze the user's instruction and determine if you have ALL the information needed to create a comprehensive document.
 
 INSTRUCTION: ${instruction}
 
 CURRENT SECTIONS: ${sections.map(s => s.title).join(", ") || "None"}
 
-Extract variables and create a plan in JSON format:
+**CRITICAL DECISION: Should you ask questions?**
+
+Ask yourself these questions about the instruction:
+1. FORMAT: Is the document type specified? (research paper, blog post, guide, lab report, essay, etc.)
+2. LENGTH: Is the target length clear? (number of pages, word count, "short", "detailed", etc.)
+3. SCOPE: Is the specific focus/angle clear? (which aspect of the topic to cover?)
+4. AUDIENCE: Is the target audience specified? (students, professionals, general public, etc.)
+5. TONE: Is the writing style specified? (academic, casual, technical, etc.)
+6. REQUIREMENTS: Are there any special constraints or requirements mentioned?
+
+**IF EVEN ONE OF THESE IS UNCLEAR OR MISSING**: Set hasQuestions: true and ask specific questions!
+
+Examples of VAGUE instructions that REQUIRE questions:
+- "write about birds" → ASK: What format? How long? Which aspect of birds? Target audience?
+- "i need a paper on machine learning" → ASK: What type of paper? How many pages? Which ML topics? What depth?
+- "create a document about cooking" → ASK: Recipe collection? Guide? Essay? How long? Which cuisine?
+
+Examples of CLEAR instructions (no questions needed):
+- "write a 10-page academic research paper on bird migration patterns for college students"
+- "create a 5-section technical guide on React hooks for professional developers"
+
+Return JSON in this exact format:
 {
   "variables": {
-    "topic": "the main subject (REQUIRED)",
-    "targetLength": "extract from instruction: '5 pages', '20 pages', 'short', 'detailed', etc. If not specified, use 'comprehensive'",
-    "estimatedSections": "calculate based on length: 5 pages=5-8 sections, 10 pages=10-15, 20 pages=15-20, comprehensive=8-12",
-    "documentType": "research paper | lab report | design document | essay | report | guide",
-    "tone": "academic | casual | technical | professional (use 'academic' if unsure)",
-    "focusAreas": ["key topics extracted from instruction"],
-    "criteria": "special instructions like 'write as if [person] was writing it', 'don't use [letter]', 'use [word] often', etc. Extract from instruction or leave empty if none",
-    "hasQuestions": false
+    "topic": "main subject from instruction",
+    "targetLength": "ONLY if clearly specified (e.g., '5 pages', '10 sections'). Otherwise set to null",
+    "estimatedSections": "number only if targetLength is specified, otherwise null",
+    "documentType": "ONLY if specified, otherwise null",
+    "tone": "ONLY if specified, otherwise null",
+    "focusAreas": ["ONLY specific topics mentioned, empty array if vague"],
+    "targetAudience": "ONLY if specified, otherwise null",
+    "criteria": "special instructions if any, otherwise null",
+    "hasQuestions": true
   },
-  "questions": [],
-  "suggestedTitle": "clear, concise title",
-  "requiredSections": ["section titles based on topic and type"],
-  "tasks": [
-    { "action": "create" | "update", "section": "section name", "description": "what to write", "done": false }
+  "questions": [
+    "What format would you like? (e.g., research paper, blog post, guide, essay)",
+    "How long should this be? (e.g., number of pages, sections, or word count)",
+    "Which specific aspect of [topic] should I focus on?",
+    "Who is the target audience?",
+    "What tone/style should I use? (e.g., academic, casual, technical)",
+    "Any special requirements or constraints?"
   ],
-  "overallGoal": "clear purpose"
+  "suggestedTitle": "title based on topic",
+  "requiredSections": [],
+  "tasks": [],
+  "overallGoal": "create comprehensive document on [topic]"
 }
 
-IMPORTANT: 
-- Extract page/length info from instruction (e.g., "20 page" → targetLength: "20 pages", estimatedSections: 15-20)
-- **BE CRITICAL**: If the instruction is vague, missing details, or you need clarification, set hasQuestions: true
-- Ask about: specific requirements, depth of coverage, target audience, technical level, special formatting, etc.
-- If instruction is clear and detailed, proceed with hasQuestions: false
-- Create tasks for ALL sections, aiming for comprehensive coverage
-- Default to creating LONGER, DETAILED documents unless specified otherwise`;
+**ONLY set hasQuestions: false if the instruction is EXTREMELY detailed and answers ALL 6 questions above.**`;
 
     const planResult = await generateWithFallback({
       messages: [
@@ -204,15 +225,18 @@ IMPORTANT:
     try {
       // Try to parse directly
       plan = JSON.parse(planResult.content);
+      console.log("✅ Successfully parsed plan JSON");
     } catch {
       // Try to extract JSON from markdown code blocks
       const jsonMatch = planResult.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
       if (jsonMatch) {
         try {
           plan = JSON.parse(jsonMatch[1]);
+          console.log("✅ Extracted and parsed plan from markdown code block");
         } catch {
-          console.error("Failed to parse plan JSON from markdown:", planResult.content);
+          console.error("❌ Failed to parse plan JSON from markdown. Raw response:", planResult.content.substring(0, 500));
           plan = {
+            variables: { hasQuestions: false },
             suggestedTitle: "Untitled Document",
             documentType: "document",
             requiredSections: [],
@@ -221,8 +245,9 @@ IMPORTANT:
           };
         }
       } else {
-        console.error("Failed to parse plan response:", planResult.content);
+        console.error("❌ No JSON found in plan response. Raw response:", planResult.content.substring(0, 500));
         plan = {
+          variables: { hasQuestions: false },
           suggestedTitle: "Untitled Document",
           documentType: "document",
           requiredSections: [],
@@ -232,8 +257,16 @@ IMPORTANT:
       }
     }
 
+    console.log("📋 Plan parsed:", {
+      hasQuestions: plan.variables?.hasQuestions,
+      questionCount: plan.questions?.length || 0,
+      suggestedTitle: plan.suggestedTitle
+    });
+
     // Check if AI has questions for the user
     if (plan.variables?.hasQuestions && plan.questions?.length > 0) {
+      console.log("❓ AI has questions - pausing for user input");
+      console.log("Questions:", plan.questions);
       const updatedMemory = { plan, currentPhase: "awaiting_answers" };
       return {
         phase: "plan",
