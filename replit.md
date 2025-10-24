@@ -6,12 +6,21 @@ Notebookr is a free, AI-powered engineering notebook application designed to hel
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (October 23, 2025)
-- **Aggressive Clarifying Questions System:** Planning now uses 4 clear pattern-matching checkpoints (FORMAT, LENGTH, SCOPE, AUDIENCE) to decide whether to ask clarifying questions. If ANY checkpoint missing from user prompt → ask questions. If ALL present → proceed to execution. Replaces previous vague "evaluate if detailed enough" approach.
-- **Safety Guards for Missing Tasks:** Added null checks for `plan.tasks` array with fallback task generation from `requiredSections` or default task. Prevents crashes during execution phase.
-- **Enhanced Question Handling:** If AI sets `hasQuestions=true` but provides no questions array, system uses default questions (format, length, focus, audience). Prevents edge case where user gets no questions.
-- **Improved Awaiting Answers:** When user answers questions, prompt now explicitly requires AI to generate `requiredSections` and `tasks` arrays before proceeding to execution.
-- **Comprehensive Logging:** Added detailed logs throughout planning process for debugging question-asking behavior and task generation.
+## Recent Changes (October 24, 2025)
+- **Smarter Question Logic (3/4 Rule):** Changed from requiring ALL 4 checkpoints to requiring AT LEAST 3 of 4 (FORMAT, LENGTH, SCOPE, AUDIENCE). Expanded keyword recognition - now "10 page paper on cats for AP" proceeds without questions.
+- **Meaningful Chapter Names:** Added strict section naming rules forbidding generic titles like "Body", "Introduction", "Chapter 1". AI now generates descriptive names like "Adorable Physical Features", "Endearing Feline Behaviors".
+- **Multiple Paragraphs Per Chapter:** Each chapter now contains 2-5 paragraphs minimum with proper separation (\n\n). Creates more natural, book-like content instead of single paragraphs.
+- **Original Instruction Display:** Added `originalInstruction` to plan variables for UI display of user's request.
+- **Simplified Signup:** Removed confusing optional email/firstName/lastName fields. Now just username + password for cleaner UX.
+- **Friendly Working Message:** Beautiful gradient banner with Sparkles icon showing "Feel free to step away - I'll keep working in the background" with elapsed time badge.
+- **Schema Fix:** Updated `insertUserSchema` with `.optional().nullable()` for profile fields (email, firstName, lastName, profileImageUrl) to properly handle NULL database values and prevent registration failures.
+
+## Previous Changes (October 23, 2025)
+- **Aggressive Clarifying Questions System:** Planning uses 4 pattern-matching checkpoints to decide whether to ask clarifying questions.
+- **Safety Guards for Missing Tasks:** Added null checks for `plan.tasks` array with fallback task generation.
+- **Enhanced Question Handling:** Default questions provided if AI fails to generate questions.
+- **Improved Awaiting Answers:** Explicit prompt for AI to generate `requiredSections` and `tasks` arrays.
+- **Comprehensive Logging:** Detailed logs throughout planning process.
 
 ## Previous Changes (October 20, 2025)
 - **Green Completion Messages:** Section completion messages now show as "✅ Finished making: [Section]" with expandable content. Messages persist in database and load on page reload. Chat only shows summary - actual content visible via click to expand.
@@ -38,11 +47,11 @@ Preferred communication style: Simple, everyday language.
 
 ### AI System
 - **Four-Phase AI Workflow:** Plan → Execute → Review → Post-Process.
-    - **Planning:** Uses 4-checkpoint pattern matching (FORMAT, LENGTH, SCOPE, AUDIENCE) to evaluate user instructions. If all checkpoints present → proceed to execution. If any missing → ask clarifying questions. Extracts variables (topic, length, tone, criteria) and creates document plan with tasks and required sections.
-    - **Execution:** Processes one task per call, generating/updating sections. Safety guards ensure tasks array always exists, with fallback generation from requiredSections.
+    - **Planning:** Uses 4-checkpoint pattern matching (FORMAT, LENGTH, SCOPE, AUDIENCE) to evaluate user instructions. If AT LEAST 3 of 4 checkpoints present → proceed to execution. If fewer than 3 → ask clarifying questions. Expanded keyword recognition includes "paper/essay/report" (FORMAT), "10 page/5 pages" (LENGTH), "on cats/about dogs" (SCOPE), "AP/college/high school" (AUDIENCE). Extracts variables (topic, length, tone, criteria) and creates document plan with meaningful section names and tasks.
+    - **Execution:** Processes one task per call, generating/updating sections with 2-5 paragraphs minimum. Each chapter has descriptive names (not "Body" or "Introduction"). Safety guards ensure tasks array always exists, with fallback generation from requiredSections.
     - **Review:** Evaluates content quality and completeness.
     - **Post-Process:** Transparently checks and fixes content to avoid AI detection patterns, enhancing human-like qualities.
-- **AI Memory System:** `notebook.aiMemory` stores TODO lists and document plans for persistent context.
+- **AI Memory System:** `notebook.aiMemory` stores TODO lists, document plans, and original user instructions for persistent context.
 - **AI Detection Avoidance:** Post-processing phase specifically targets and mitigates AI detection patterns.
 - **Version History:** Automatic snapshots of sections before updates with restore functionality.
 - **Question Handling:** Default questions provided if AI fails to generate questions. Awaiting answers phase regenerates full plan with tasks and sections.
