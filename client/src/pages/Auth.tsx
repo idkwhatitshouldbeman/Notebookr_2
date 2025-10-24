@@ -20,10 +20,7 @@ const loginSchema = z.object({
 
 const registerSchema = insertUserSchema.pick({ 
   username: true, 
-  password: true, 
-  email: true,
-  firstName: true,
-  lastName: true
+  password: true
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
@@ -42,10 +39,7 @@ export default function Auth() {
     resolver: zodResolver(registerSchema),
     defaultValues: { 
       username: "", 
-      password: "", 
-      email: "",
-      firstName: "",
-      lastName: ""
+      password: ""
     },
   });
 
@@ -157,36 +151,6 @@ export default function Auth() {
                       {registerForm.formState.errors.password && (
                         <p className="text-sm text-destructive">{registerForm.formState.errors.password.message}</p>
                       )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="register-firstName">First Name</Label>
-                        <Input
-                          id="register-firstName"
-                          data-testid="input-register-firstName"
-                          {...registerForm.register("firstName")}
-                          placeholder="First name"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="register-lastName">Last Name</Label>
-                        <Input
-                          id="register-lastName"
-                          data-testid="input-register-lastName"
-                          {...registerForm.register("lastName")}
-                          placeholder="Last name"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="register-email">Email (optional)</Label>
-                      <Input
-                        id="register-email"
-                        type="email"
-                        data-testid="input-register-email"
-                        {...registerForm.register("email")}
-                        placeholder="your@email.com"
-                      />
                     </div>
                     <Button
                       type="submit"

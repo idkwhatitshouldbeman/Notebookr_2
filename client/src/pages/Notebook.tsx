@@ -628,20 +628,22 @@ export default function Notebook() {
           <ScrollArea className="flex-1 p-6">
           <div className="max-w-2xl mx-auto space-y-4">
             {aiPhase && (
-              <div className="mb-4 p-3 rounded-lg bg-accent/50 border border-accent flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">
-                    {aiPhase === "plan" && "Planning document structure..."}
-                    {aiPhase === "execute" && "Executing tasks..."}
-                    {aiPhase === "review" && "Reviewing work..."}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{elapsedTime}s</span>
-                  {elapsedTime > 10 && (
-                    <span className="text-xs text-yellow-600 dark:text-yellow-500">(AI service may be slow)</span>
-                  )}
+              <div className="mb-4 p-4 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border-2 border-primary/20">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <div className="flex items-center gap-3">
+                    <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+                    <div>
+                      <p className="text-sm font-medium">
+                        {aiPhase === "plan" && "Planning your document..."}
+                        {aiPhase === "execute" && "Writing content..."}
+                        {aiPhase === "review" && "Reviewing and polishing..."}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Feel free to step away - I'll keep working in the background
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted-foreground bg-background px-2 py-1 rounded">{elapsedTime}s</span>
                 </div>
               </div>
             )}

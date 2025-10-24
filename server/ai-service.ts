@@ -162,31 +162,32 @@ INSTRUCTION: "${instruction}"
 
 PATTERN MATCHING RULES:
 
-1. Check if instruction contains SPECIFIC document type keywords:
-   - Contains "research paper", "lab report", "essay", "guide", "blog post", "documentation"? → FORMAT ✓
-   - Just says "document", "paper", "write about"? → FORMAT ✗
+1. Check if instruction contains document type keywords:
+   - Contains "paper", "essay", "report", "guide", "article", "blog", "documentation", "document"? → FORMAT ✓
+   - No format mentioned? → FORMAT ✗
 
 2. Check if instruction specifies LENGTH:
-   - Contains number + "page/pages", "section/sections", "words", OR "short/long/detailed"? → LENGTH ✓
+   - Contains number + "page/pages", "section/sections", "words", OR "short/long/detailed/comprehensive"? → LENGTH ✓
    - No length mentioned? → LENGTH ✗
 
-3. Check if instruction specifies SPECIFIC TOPIC/SCOPE:
-   - Contains detailed topic like "bird migration patterns", "React hooks", "thermal conductivity"? → SCOPE ✓
-   - Generic like "birds", "coding", "science"? → SCOPE ✗
+3. Check if instruction specifies TOPIC/SCOPE (even if general):
+   - Contains a clear topic/subject mentioned? → SCOPE ✓
+   - Completely vague with no topic? → SCOPE ✗
 
-4. Check if instruction specifies TARGET AUDIENCE:
-   - Contains "for [audience]" like "for students", "for developers", "for beginners"? → AUDIENCE ✓
-   - No audience mentioned? → AUDIENCE ✗
+4. Check if instruction gives AUDIENCE clues:
+   - Contains "for [audience]", "AP", "college", "high school", "professional", "beginner", "advanced", "expert"? → AUDIENCE ✓
+   - No audience hints? → AUDIENCE ✗
 
 DECISION:
-- If instruction has ALL 4 checkmarks (FORMAT ✓, LENGTH ✓, SCOPE ✓, AUDIENCE ✓): hasQuestions = false
-- If instruction is MISSING ANY checkmark: hasQuestions = true
+- If instruction has AT LEAST 3 checkmarks: hasQuestions = false (proceed)
+- If instruction has 2 or fewer checkmarks: hasQuestions = true (ask questions)
 
 EXAMPLES:
-❌ "i want a paper about birds" → FORMAT ✗, LENGTH ✗, SCOPE ✗, AUDIENCE ✗ → hasQuestions: true
-❌ "write about React" → FORMAT ✗, LENGTH ✗, SCOPE ✗, AUDIENCE ✗ → hasQuestions: true
-✅ "write a 5-page academic research paper on bird migration patterns for college biology students" → FORMAT ✓, LENGTH ✓, SCOPE ✓, AUDIENCE ✓ → hasQuestions: false
-✅ "create a 3-section technical guide on useState hook for React developers" → FORMAT ✓, LENGTH ✓, SCOPE ✓, AUDIENCE ✓ → hasQuestions: false
+❌ "write about something" → FORMAT ✗, LENGTH ✗, SCOPE ✗, AUDIENCE ✗ → 0 checks → hasQuestions: true
+❌ "i want a paper about birds" → FORMAT ✓, LENGTH ✗, SCOPE ✓, AUDIENCE ✗ → 2 checks → hasQuestions: true  
+✅ "make me a 10 page paper on why cats are cute. for an AP paper" → FORMAT ✓, LENGTH ✓, SCOPE ✓, AUDIENCE ✓ → 4 checks → hasQuestions: false
+✅ "write a detailed guide on React hooks for developers" → FORMAT ✓, LENGTH ✓, SCOPE ✓, AUDIENCE ✓ → 4 checks → hasQuestions: false
+✅ "5 page essay on climate change" → FORMAT ✓, LENGTH ✓, SCOPE ✓, AUDIENCE ✗ → 3 checks → hasQuestions: false
 
 Return JSON:
 {
@@ -196,16 +197,23 @@ Return JSON:
     "documentType": "research paper OR guide OR null",
     "focusAreas": ["specific topics OR empty"],
     "targetAudience": "who this is for OR null",
+    "originalInstruction": "${instruction}",
     "hasQuestions": false
   },
   "questions": [],
   "suggestedTitle": "title",
-  "requiredSections": ["section1", "section2"],
-  "tasks": [{"action": "create", "section": "section1", "description": "write about X", "done": false}]
+  "requiredSections": ["Meaningful Chapter Name 1", "Meaningful Chapter Name 2", "Meaningful Chapter Name 3"],
+  "tasks": [{"action": "create", "section": "Meaningful Chapter Name 1", "description": "write about X", "done": false}]
 }
 
+CRITICAL SECTION NAMING RULES:
+- DO NOT use generic names like "Introduction", "Body", "Conclusion", "Chapter 1", "Section 1"
+- DO use DESCRIPTIVE names that tell what the chapter is about
+- Examples for "why cats are cute": "Adorable Physical Features", "Endearing Behaviors", "The Science of Cuteness", "Emotional Bonds with Cats"
+- Examples for "React hooks": "Understanding useState", "Working with useEffect", "Custom Hook Patterns", "Performance Optimization"
+
 If hasQuestions is true, include questions array asking about missing checkmarks.
-If hasQuestions is false, questions must be empty array [] and you MUST populate requiredSections and tasks.`;
+If hasQuestions is false, questions must be empty array [] and you MUST populate requiredSections and tasks with MEANINGFUL names.`;
 
     const planResult = await generateWithFallback({
       messages: [
@@ -446,8 +454,11 @@ IMPORTANT GUIDELINES:
 - Use ${vars.tone} tone throughout
 - Include specific details, examples, and comprehensive explanations
 - Make content professional and well-structured
+- EACH CHAPTER MUST HAVE MULTIPLE PARAGRAPHS (2-5 paragraphs minimum)
+- Separate paragraphs with double newlines (\n\n)
 - Aim for 300-600 words per section for comprehensive documents
-- For "20 page" documents, write extensive, detailed content (500+ words per section)
+- For "10+ page" documents, write extensive, detailed content (500+ words per section)
+- Think like a book: each chapter has multiple paragraphs covering different aspects
 
 Respond with JSON:
 {
@@ -455,7 +466,7 @@ Respond with JSON:
     {
       "type": "update" | "create",
       "sectionId": "section-id-or-new-title",
-      "content": "COMPREHENSIVE, DETAILED section content (multiple paragraphs)"
+      "content": "Paragraph 1 with details.\n\nParagraph 2 expanding on the topic.\n\nParagraph 3 with examples."
     }
   ],
   "message": "what you did"
