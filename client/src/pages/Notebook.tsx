@@ -316,11 +316,28 @@ export default function Notebook() {
         console.log(`AI Response (iteration ${iterationCount}):`, result);
         console.log(`API call took ${apiDuration}s`);
         
+        // Add progress message if available (during execute phase)
+        if (result.progressMessage) {
+          const progressMsg: Message = {
+            id: `progress-${Date.now()}`,
+            role: "assistant",
+            content: result.progressMessage
+          };
+          setMessages(prev => [...prev, progressMsg]);
+          
+          // Save progress message to database
+          saveMessage.mutate({
+            notebookId: id!,
+            role: "assistant",
+            content: result.progressMessage
+          });
+        }
+        
         // Add timing message to chat
         const timingMessage: Message = {
           id: `timing-${Date.now()}`,
           role: "assistant",
-          content: `API request completed in ${apiDuration}s`
+          content: `⏱️ API request completed in ${apiDuration}s`
         };
         setMessages(prev => [...prev, timingMessage]);
         
@@ -328,7 +345,7 @@ export default function Notebook() {
         saveMessage.mutate({
           notebookId: id!,
           role: "assistant",
-          content: `API request completed in ${apiDuration}s`
+          content: `⏱️ API request completed in ${apiDuration}s`
         });
         
         // Update phase and plan

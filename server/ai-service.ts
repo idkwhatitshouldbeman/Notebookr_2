@@ -124,6 +124,7 @@ interface ThreePhaseResponse {
     content: string;
   }>;
   message: string;
+  progressMessage?: string; // Optional progress message for execution phase
   aiMemory: any;
   confidence: "high" | "medium" | "low";
   suggestedTitle?: string;
@@ -519,10 +520,18 @@ Respond with JSON:
       updatedMemory.currentPhase = "review";
     }
 
+    // Calculate progress for user feedback
+    const completedTasks = updatedTasks.filter((t: any) => t.done).length;
+    const totalTasks = updatedTasks.length;
+    const progressMessage = totalTasks > 0 
+      ? `✍️ Writing ${nextTask.section}... (${completedTasks}/${totalTasks} completed)`
+      : `✍️ Writing ${nextTask.section}...`;
+
     return {
       phase: "execute",
       actions: execResponse.actions || [],
       message: execResponse.message || "Executed task",
+      progressMessage, // New field for showing progress in chat
       aiMemory: updatedMemory,
       confidence: "high",
       isComplete: false, // Not complete until review approves
