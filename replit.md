@@ -14,6 +14,9 @@ Preferred communication style: Simple, everyday language.
 - **Simplified Signup:** Removed confusing optional email/firstName/lastName fields. Now just username + password for cleaner UX.
 - **Friendly Working Message:** Beautiful gradient banner with Sparkles icon showing "Feel free to step away - I'll keep working in the background" with elapsed time badge.
 - **Schema Fix:** Updated `insertUserSchema` with `.optional().nullable()` for profile fields (email, firstName, lastName, profileImageUrl) to properly handle NULL database values and prevent registration failures.
+- **Chapter Progress Messages:** During execution phase, chat now displays specific progress messages like "✍️ Writing Adorable Physical Features... (3/8 completed)" instead of generic "Writing content..." status.
+- **Improved Timing Display:** Added ⏱️ emoji to timing messages for better visual distinction.
+- **Status Dot Implementation:** Verified green/yellow/red status dots update correctly on section refetch (red <100 chars, yellow 100-499 chars, green ≥500 chars).
 
 ## Previous Changes (October 23, 2025)
 - **Aggressive Clarifying Questions System:** Planning uses 4 pattern-matching checkpoints to decide whether to ask clarifying questions.
