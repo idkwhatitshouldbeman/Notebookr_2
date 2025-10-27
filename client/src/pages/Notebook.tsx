@@ -333,11 +333,25 @@ export default function Notebook() {
           });
         }
         
+        // Create descriptive timing message based on what was done
+        let timingDescription = "Completed";
+        if (result.phase === "plan") {
+          timingDescription = "Planned document structure";
+        } else if (result.phase === "execute" && result.actions && result.actions.length > 0) {
+          const action = result.actions[0];
+          const actionVerb = action.type === "create" ? "Created" : "Wrote";
+          timingDescription = `${actionVerb} ${action.sectionId}`;
+        } else if (result.phase === "review") {
+          timingDescription = "Reviewed content";
+        } else if (result.phase === "postprocess") {
+          timingDescription = "Post-processed content";
+        }
+        
         // Add timing message to chat
         const timingMessage: Message = {
           id: `timing-${Date.now()}`,
           role: "assistant",
-          content: `⏱️ API request completed in ${apiDuration}s`
+          content: `⏱️ ${timingDescription} in ${apiDuration}s`
         };
         setMessages(prev => [...prev, timingMessage]);
         
@@ -345,7 +359,7 @@ export default function Notebook() {
         saveMessage.mutate({
           notebookId: id!,
           role: "assistant",
-          content: `⏱️ API request completed in ${apiDuration}s`
+          content: `⏱️ ${timingDescription} in ${apiDuration}s`
         });
         
         // Update phase and plan
