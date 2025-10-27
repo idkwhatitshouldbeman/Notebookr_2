@@ -6,7 +6,11 @@ Notebookr is a free, AI-powered engineering notebook application designed to hel
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (October 24, 2025)
+## Recent Changes (October 27, 2025)
+- **Conversational AI Planning:** Completely revamped planning phase to be more conversational and exploratory. AI now acts like a helpful friend, asking open-ended questions to understand true goals and context before proceeding. Can have multi-turn conversations with follow-up questions until it has crystal clear understanding.
+- **Descriptive Timing Messages:** Timing logs now show what AI actually did (e.g., "⏱️ Planned document structure in 4.12s", "⏱️ Wrote Conclusion in 3.07s") instead of generic "API request completed" messages.
+
+## Previous Changes (October 24, 2025)
 - **Smarter Question Logic (3/4 Rule):** Changed from requiring ALL 4 checkpoints to requiring AT LEAST 3 of 4 (FORMAT, LENGTH, SCOPE, AUDIENCE). Expanded keyword recognition - now "10 page paper on cats for AP" proceeds without questions.
 - **Meaningful Chapter Names:** Added strict section naming rules forbidding generic titles like "Body", "Introduction", "Chapter 1". AI now generates descriptive names like "Adorable Physical Features", "Endearing Feline Behaviors".
 - **Multiple Paragraphs Per Chapter:** Each chapter now contains 2-5 paragraphs minimum with proper separation (\n\n). Creates more natural, book-like content instead of single paragraphs.
@@ -50,7 +54,7 @@ Preferred communication style: Simple, everyday language.
 
 ### AI System
 - **Four-Phase AI Workflow:** Plan → Execute → Review → Post-Process.
-    - **Planning:** Uses 4-checkpoint pattern matching (FORMAT, LENGTH, SCOPE, AUDIENCE) to evaluate user instructions. If AT LEAST 3 of 4 checkpoints present → proceed to execution. If fewer than 3 → ask clarifying questions. Expanded keyword recognition includes "paper/essay/report" (FORMAT), "10 page/5 pages" (LENGTH), "on cats/about dogs" (SCOPE), "AP/college/high school" (AUDIENCE). Extracts variables (topic, length, tone, criteria) and creates document plan with meaningful section names and tasks.
+    - **Planning:** Uses conversational approach to deeply understand user intent. AI acts like a helpful friend, asking open-ended questions about goals, context, audience, and requirements. Supports multi-turn conversations with follow-up questions until it has crystal clear understanding. Only proceeds to execution when confident about user's vision. Extracts variables (topic, length, tone, criteria) and creates document plan with meaningful section names and tasks.
     - **Execution:** Processes one task per call, generating/updating sections with 2-5 paragraphs minimum. Each chapter has descriptive names (not "Body" or "Introduction"). Safety guards ensure tasks array always exists, with fallback generation from requiredSections.
     - **Review:** Evaluates content quality and completeness.
     - **Post-Process:** Transparently checks and fixes content to avoid AI detection patterns, enhancing human-like qualities.

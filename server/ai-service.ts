@@ -157,38 +157,33 @@ export async function threePhaseGeneration(
   if (!aiMemory || !aiMemory.plan) {
     console.log("📋 Phase 1: Planning document structure...");
     
-    const planningPrompt = `Analyze this instruction and decide: Do you have enough detail to proceed, or do you need to ask clarifying questions?
+    const planningPrompt = `You're helping someone create a document. Have a natural conversation to understand what they really need.
 
-INSTRUCTION: "${instruction}"
+THEIR REQUEST: "${instruction}"
 
-PATTERN MATCHING RULES:
+YOUR APPROACH:
+1. Be CONVERSATIONAL and CURIOUS - talk like a helpful friend, not a robot
+2. Ask open-ended questions to understand their TRUE goals and context
+3. Dig deeper into WHY they need this and WHAT they're trying to achieve
+4. Only proceed when you have a clear picture of their vision
 
-1. Check if instruction contains document type keywords:
-   - Contains "paper", "essay", "report", "guide", "article", "blog", "documentation", "document"? → FORMAT ✓
-   - No format mentioned? → FORMAT ✗
+WHEN TO ASK QUESTIONS (hasQuestions = true):
+- The request is vague or unclear about what they want
+- You don't understand the PURPOSE or GOAL behind what they're asking for
+- You're missing critical context about their audience, use case, or requirements
+- You want to explore different angles or possibilities they might not have considered
 
-2. Check if instruction specifies LENGTH:
-   - Contains number + "page/pages", "section/sections", "words", OR "short/long/detailed/comprehensive"? → LENGTH ✓
-   - No length mentioned? → LENGTH ✗
+Example questions to ask:
+- "What's the main goal you're trying to achieve with this?"
+- "Who will be reading this?"
+- "What's the context - is this for school, work, or something else?"
+- "Are there specific points or angles you definitely want me to cover?"
+- "How detailed or in-depth should this be?"
 
-3. Check if instruction specifies TOPIC/SCOPE (even if general):
-   - Contains a clear topic/subject mentioned? → SCOPE ✓
-   - Completely vague with no topic? → SCOPE ✗
-
-4. Check if instruction gives AUDIENCE clues:
-   - Contains "for [audience]", "AP", "college", "high school", "professional", "beginner", "advanced", "expert"? → AUDIENCE ✓
-   - No audience hints? → AUDIENCE ✗
-
-DECISION:
-- If instruction has AT LEAST 3 checkmarks: hasQuestions = false (proceed)
-- If instruction has 2 or fewer checkmarks: hasQuestions = true (ask questions)
-
-EXAMPLES:
-❌ "write about something" → FORMAT ✗, LENGTH ✗, SCOPE ✗, AUDIENCE ✗ → 0 checks → hasQuestions: true
-❌ "i want a paper about birds" → FORMAT ✓, LENGTH ✗, SCOPE ✓, AUDIENCE ✗ → 2 checks → hasQuestions: true  
-✅ "make me a 10 page paper on why cats are cute. for an AP paper" → FORMAT ✓, LENGTH ✓, SCOPE ✓, AUDIENCE ✓ → 4 checks → hasQuestions: false
-✅ "write a detailed guide on React hooks for developers" → FORMAT ✓, LENGTH ✓, SCOPE ✓, AUDIENCE ✓ → 4 checks → hasQuestions: false
-✅ "5 page essay on climate change" → FORMAT ✓, LENGTH ✓, SCOPE ✓, AUDIENCE ✗ → 3 checks → hasQuestions: false
+WHEN TO PROCEED (hasQuestions = false):
+- You have a CRYSTAL CLEAR understanding of what they want
+- You know the purpose, audience, scope, and level of detail
+- They gave you extremely specific instructions with all the context you need
 
 Return JSON:
 {
@@ -199,21 +194,21 @@ Return JSON:
     "focusAreas": ["specific topics OR empty"],
     "targetAudience": "who this is for OR null",
     "originalInstruction": "${instruction}",
-    "hasQuestions": false
+    "hasQuestions": true/false
   },
-  "questions": [],
+  "questions": ["conversational question 1", "conversational question 2"],
   "suggestedTitle": "title",
-  "requiredSections": ["Meaningful Chapter Name 1", "Meaningful Chapter Name 2", "Meaningful Chapter Name 3"],
+  "requiredSections": ["Meaningful Chapter Name 1", "Meaningful Chapter Name 2"],
   "tasks": [{"action": "create", "section": "Meaningful Chapter Name 1", "description": "write about X", "done": false}]
 }
 
 CRITICAL SECTION NAMING RULES:
 - DO NOT use generic names like "Introduction", "Body", "Conclusion", "Chapter 1", "Section 1"
 - DO use DESCRIPTIVE names that tell what the chapter is about
-- Examples for "why cats are cute": "Adorable Physical Features", "Endearing Behaviors", "The Science of Cuteness", "Emotional Bonds with Cats"
-- Examples for "React hooks": "Understanding useState", "Working with useEffect", "Custom Hook Patterns", "Performance Optimization"
+- Examples for "why cats are cute": "Adorable Physical Features", "Endearing Behaviors", "The Science of Cuteness"
+- Examples for "React hooks": "Understanding useState", "Working with useEffect", "Custom Hook Patterns"
 
-If hasQuestions is true, include questions array asking about missing checkmarks.
+If hasQuestions is true, include 2-4 conversational questions in the questions array.
 If hasQuestions is false, questions must be empty array [] and you MUST populate requiredSections and tasks with MEANINGFUL names.`;
 
     const planResult = await generateWithFallback({
@@ -317,11 +312,23 @@ If hasQuestions is false, questions must be empty array [] and you MUST populate
     console.log("💬 User answered questions, updating plan...");
     
     const plan = aiMemory.plan;
-    const updatePrompt = `User answered your questions with: "${instruction}"
+    const updatePrompt = `Continue the conversation to understand what the user needs.
 
-ORIGINAL TOPIC: ${plan.variables?.topic || 'document'}
+ORIGINAL REQUEST: ${plan.variables?.originalInstruction || 'document'}
+YOUR PREVIOUS QUESTIONS: ${plan.questions?.join(' ') || 'none'}
+THEIR ANSWER: "${instruction}"
 
-Update the plan with the new information. Return complete JSON with:
+YOUR OPTIONS:
+1. If you now have CRYSTAL CLEAR understanding → Set hasQuestions = false and create the plan
+2. If you need MORE clarity or want to dig deeper → Set hasQuestions = true and ask follow-up questions
+
+Be conversational and natural. Dig into:
+- Their real goal and purpose
+- What success looks like for this document
+- Any specific requirements or preferences
+- The context and audience
+
+Return complete JSON:
 {
   "variables": {
     "topic": "updated topic",
@@ -329,19 +336,24 @@ Update the plan with the new information. Return complete JSON with:
     "documentType": "extract type (e.g., 'research paper')",
     "targetAudience": "extract audience (e.g., 'college students')",
     "focusAreas": ["specific topics"],
-    "hasQuestions": false
+    "originalInstruction": "${plan.variables?.originalInstruction || instruction}",
+    "hasQuestions": true/false
   },
-  "questions": [],
+  "questions": ["follow-up question 1", "follow-up question 2"],
   "suggestedTitle": "clear title",
   "requiredSections": ["section1", "section2", "section3"],
   "tasks": [
     {"action": "create", "section": "section1", "description": "write about X", "done": false},
     {"action": "create", "section": "section2", "description": "write about Y", "done": false}
-  ],
-  "overallGoal": "create document"
+  ]
 }
 
-CRITICAL: You MUST include requiredSections array and tasks array. Set hasQuestions to false since user answered.`;
+CRITICAL SECTION NAMING RULES:
+- DO NOT use generic names like "Introduction", "Body", "Conclusion"
+- DO use DESCRIPTIVE names that tell what the chapter is about
+
+If hasQuestions is true: Include conversational follow-up questions
+If hasQuestions is false: Empty questions array and MUST populate requiredSections and tasks arrays`;
 
     const updateResult = await generateWithFallback({
       messages: [
@@ -375,11 +387,29 @@ CRITICAL: You MUST include requiredSections array and tasks array. Set hasQuesti
       }
     }
 
+    // Check if AI wants to ask more questions
+    if (updatedPlan.variables?.hasQuestions) {
+      console.log("❓ AI has follow-up questions - continuing conversation");
+      const updatedMemory = { plan: updatedPlan, currentPhase: "awaiting_answers" };
+      return {
+        phase: "plan",
+        actions: [],
+        message: updatedPlan.questions?.join(" ") || "Tell me more about what you're looking for.",
+        aiMemory: updatedMemory,
+        confidence: "high",
+        suggestedTitle: updatedPlan.suggestedTitle,
+        plan: updatedPlan,
+        shouldContinue: false, // Wait for user to answer
+        isComplete: false
+      };
+    }
+
+    // AI has all the info it needs, proceed to execute
     const updatedMemory = { plan: updatedPlan, currentPhase: "execute" };
     return {
       phase: "plan",
       actions: [],
-      message: "Got it! Continuing with document generation...",
+      message: "Got it! Starting to write your document...",
       aiMemory: updatedMemory,
       confidence: "high",
       suggestedTitle: updatedPlan.suggestedTitle,
