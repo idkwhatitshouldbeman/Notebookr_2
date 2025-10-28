@@ -26,11 +26,8 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-4 space-y-4">
-        <Link href="/" className="flex items-center gap-2 hover-elevate active-elevate-2 rounded-lg p-2 -m-2" data-testid="link-home-logo">
-          <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
-            <span className="font-bold text-sm text-primary-foreground">N</span>
-          </div>
-          <span className="font-semibold text-sidebar-foreground">Notebookr</span>
+        <Link href="/" className="inline-flex hover-elevate active-elevate-2 rounded-lg px-3 py-2 bg-primary" data-testid="link-home-logo">
+          <span className="font-semibold text-primary-foreground">Notebookr</span>
         </Link>
         
         <div className="relative">
