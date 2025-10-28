@@ -6,7 +6,16 @@ Notebookr is a free, AI-powered engineering notebook application designed to hel
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (October 27, 2025)
+## Recent Changes (October 28, 2025)
+- **Premium Credit System:** Implemented complete credit-based monetization with 100% markup on OpenAI costs (1000 credits = $1). Free users access free OpenRouter models, premium users purchase credits for faster OpenAI models.
+- **Bulk Purchase Tiers:** Added scaling bonus structure: $5→5k credits, $10→11k (+10%), $25→30k (+20%), $50→65k (+30% best value).
+- **Stripe Integration:** Full Stripe checkout and webhook implementation with graceful degradation when Stripe is not configured. Server starts successfully with or without Stripe secrets.
+- **AI Model Selection:** Users choose between Free (OpenRouter), Fast (GPT-4o-mini), and Ultra (GPT-4o) tiers. Auto-switches to free tier when credits reach zero.
+- **Transaction Logging:** Comprehensive transaction history in Settings page showing credit purchases, AI usage costs, and balance changes for transparent testing/debugging.
+- **Settings Page Enhancement:** Added credit balance display, AI model selector with cost preview, purchase buttons with tier bonuses, and detailed transaction log.
+- **Optional Stripe:** Made Stripe initialization conditional to prevent server crashes during development. Endpoints return 503 when Stripe is not configured.
+
+## Previous Changes (October 27, 2025)
 - **Conversational AI Planning:** Completely revamped planning phase to be more conversational and exploratory. AI now acts like a helpful friend, asking open-ended questions to understand true goals and context before proceeding. Can have multi-turn conversations with follow-up questions until it has crystal clear understanding.
 - **Descriptive Timing Messages:** Timing logs now show what AI actually did (e.g., "⏱️ Planned document structure in 4.12s", "⏱️ Wrote Conclusion in 3.07s") instead of generic "API request completed" messages.
 
