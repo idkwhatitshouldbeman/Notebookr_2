@@ -125,7 +125,7 @@ export default function Settings() {
       
       <div className="space-y-8">
         {/* Premium Features Section */}
-        <div className="space-y-4">
+        <div id="premium-features" className="space-y-4">
           <h2 className="text-xl font-semibold">Premium Features</h2>
           
           <Card>
@@ -274,7 +274,7 @@ export default function Settings() {
         </div>
 
         {/* Billing Section */}
-        <div className="space-y-4">
+        <div id="billing" className="space-y-4">
           <h2 className="text-xl font-semibold">Billing</h2>
           
           <Card>
@@ -324,7 +324,7 @@ export default function Settings() {
         </div>
 
         {/* Account Section */}
-        <div className="space-y-4">
+        <div id="account" className="space-y-4">
           <h2 className="text-xl font-semibold">Account</h2>
           
           <Card>
@@ -358,7 +358,7 @@ export default function Settings() {
         </div>
 
         {/* Preferences Section */}
-        <div className="space-y-4">
+        <div id="preferences" className="space-y-4">
           <h2 className="text-xl font-semibold">Preferences</h2>
           
           <Card>

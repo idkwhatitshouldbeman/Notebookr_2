@@ -10,7 +10,7 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { FileText, Home, Settings, Search } from "lucide-react";
+import { FileText, Home, Settings, Search, Zap, CreditCard, User, Palette } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -57,6 +57,48 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {isSettingsPage && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Settings</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <a href="#premium-features" data-testid="link-settings-premium">
+                      <Zap className="h-4 w-4" />
+                      <span>Premium Features</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <a href="#billing" data-testid="link-settings-billing">
+                      <CreditCard className="h-4 w-4" />
+                      <span>Billing</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <a href="#account" data-testid="link-settings-account">
+                      <User className="h-4 w-4" />
+                      <span>Account</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <a href="#preferences" data-testid="link-settings-preferences">
+                      <Palette className="h-4 w-4" />
+                      <span>Preferences</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {!isSettingsPage && privatePages.length > 0 && (
           <SidebarGroup>
