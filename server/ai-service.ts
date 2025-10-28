@@ -430,7 +430,7 @@ CRITICAL SECTION NAMING RULES:
     return {
       phase: "plan",
       actions: [],
-      message: "Got it! Starting to write your document...",
+      message: "ok, making it now",
       aiMemory: updatedMemory,
       confidence: "high",
       suggestedTitle: updatedPlan.suggestedTitle,
