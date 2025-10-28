@@ -7,6 +7,10 @@ Notebookr is a free, AI-powered engineering notebook application designed to hel
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (October 28, 2025)
+- **Accurate Length Targeting:** AI now calculates precise word count targets based on Times New Roman 12pt, double-spaced format (~250 words per page). If user requests "5 pages", AI generates ~1250 words distributed across sections to match actual page count when copied to Word.
+- **One-at-a-Time Questions:** Changed conversational flow to ask ONE SHORT question at a time instead of joining all questions into giant message. Creates natural back-and-forth dialogue. After all questions answered, AI says "ok, making it now" before starting.
+- **Settings Navigation:** Added sidebar section navigation for Settings page (Premium Features, Billing, Account, Preferences) with smooth scrolling to each section.
+- **Removed Upgrade Banner:** Removed always-visible upgrade header banner. Upgrade/credit purchase functionality now accessible only through Settings page for cleaner interface.
 - **Premium Credit System:** Implemented complete credit-based monetization with 100% markup on OpenAI costs (1000 credits = $1). Free users access free OpenRouter models, premium users purchase credits for faster OpenAI models.
 - **Bulk Purchase Tiers:** Added scaling bonus structure: $5→5k credits, $10→11k (+10%), $25→30k (+20%), $50→65k (+30% best value).
 - **Stripe Integration:** Full Stripe checkout and webhook implementation with graceful degradation when Stripe is not configured. Server starts successfully with or without Stripe secrets.

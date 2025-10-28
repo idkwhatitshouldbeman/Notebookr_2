@@ -484,11 +484,24 @@ CRITICAL SECTION NAMING RULES:
     }
 
     const vars = plan.variables || {};
+    
+    // Calculate target word count based on page length
+    // Standard: Times New Roman 12pt, double-spaced = ~250 words per page
+    let targetWordsPerSection = 300; // default
+    const targetLength = vars.targetLength || '';
+    const pageMatch = targetLength.match(/(\d+)\s*page/i);
+    if (pageMatch) {
+      const pageCount = parseInt(pageMatch[1]);
+      const totalWords = pageCount * 250; // 250 words per page standard
+      const sectionCount = plan.requiredSections?.length || plan.tasks?.length || 1;
+      targetWordsPerSection = Math.floor(totalWords / sectionCount);
+    }
+    
     const executionPrompt = `You are executing a document creation plan. Write COMPREHENSIVE, DETAILED, and SUBSTANTIAL content.
 
 DOCUMENT CONTEXT:
 - Topic: ${vars.topic || 'Not specified'}
-- Target Length: ${vars.targetLength || 'comprehensive'}
+- Target Length: ${vars.targetLength || 'comprehensive'} (IMPORTANT: When formatted in Times New Roman 12pt, double-spaced, this should match the page count!)
 - Document Type: ${plan.documentType || vars.documentType}
 - Tone: ${vars.tone || 'academic'}
 - Focus Areas: ${vars.focusAreas?.join(', ') || 'general coverage'}
@@ -501,16 +514,22 @@ ${sections.map(s => `## ${s.title}\n${s.content || '(empty)'}`).join('\n\n')}
 
 NEXT TASK: ${nextTask.action} "${nextTask.section}" - ${nextTask.description}
 
+CRITICAL LENGTH REQUIREMENTS:
+- TARGET WORD COUNT FOR THIS SECTION: ~${targetWordsPerSection} words
+- This ensures the final document matches "${vars.targetLength}" when formatted in Times New Roman 12pt, double-spaced
+- Standard academic format: ~250 words = 1 page in Times New Roman 12pt, double-spaced
+- Write ENOUGH content to hit this word count target
+- Do NOT write less - users expect the full length when they copy to Word
+
 IMPORTANT GUIDELINES:
-- Write LONG, THOROUGH content matching the target length (${vars.targetLength})
+- Write LONG, THOROUGH content matching the word count target (~${targetWordsPerSection} words)
 - Use ${vars.tone} tone throughout
 - Include specific details, examples, and comprehensive explanations
 - Make content professional and well-structured
-- EACH CHAPTER MUST HAVE MULTIPLE PARAGRAPHS (2-5 paragraphs minimum)
+- EACH CHAPTER MUST HAVE MULTIPLE PARAGRAPHS (3-6 paragraphs to hit word count)
 - Separate paragraphs with double newlines (\n\n)
-- Aim for 300-600 words per section for comprehensive documents
-- For "10+ page" documents, write extensive, detailed content (500+ words per section)
-- Think like a book: each chapter has multiple paragraphs covering different aspects
+- Each paragraph should be 50-100 words (substantial, not short)
+- Think like a book: each chapter has multiple paragraphs covering different aspects in depth
 
 Respond with JSON:
 {
