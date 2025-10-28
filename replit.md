@@ -7,6 +7,7 @@ Notebookr is a free, AI-powered engineering notebook application designed to hel
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (October 28, 2025)
+- **Cleaner Status Messages:** Removed all emojis from completion messages. Format now consistently shows "Completed X in Y time", "Reviewed content in Y time", "Revised content in Y time". Always displays specific section names instead of generic "Completed" messages.
 - **Accurate Length Targeting:** AI now calculates precise word count targets based on Times New Roman 12pt, double-spaced format (~250 words per page). If user requests "5 pages", AI generates ~1250 words distributed across sections to match actual page count when copied to Word.
 - **One-at-a-Time Questions:** Changed conversational flow to ask ONE SHORT question at a time instead of joining all questions into giant message. Creates natural back-and-forth dialogue. After all questions answered, AI says "ok, making it now" before starting.
 - **Settings Navigation:** Added sidebar section navigation for Settings page (Premium Features, Billing, Account, Preferences) with smooth scrolling to each section.

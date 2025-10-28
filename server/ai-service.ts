@@ -594,8 +594,8 @@ Respond with JSON:
     const completedTasks = updatedTasks.filter((t: any) => t.done).length;
     const totalTasks = updatedTasks.length;
     const progressMessage = totalTasks > 0 
-      ? `✍️ Writing ${nextTask.section}... (${completedTasks}/${totalTasks} completed)`
-      : `✍️ Writing ${nextTask.section}...`;
+      ? `Writing ${nextTask.section}... (${completedTasks}/${totalTasks} completed)`
+      : `Writing ${nextTask.section}...`;
 
     return {
       phase: "execute",

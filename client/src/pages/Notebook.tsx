@@ -316,70 +316,74 @@ export default function Notebook() {
         console.log(`AI Response (iteration ${iterationCount}):`, result);
         console.log(`API call took ${apiDuration}s`);
         
-        // Add progress message if available (during execute phase)
-        if (result.progressMessage) {
-          const progressMsg: Message = {
-            id: `progress-${Date.now()}`,
-            role: "assistant",
-            content: result.progressMessage
-          };
-          setMessages(prev => [...prev, progressMsg]);
-          
-          // Save progress message to database
-          saveMessage.mutate({
-            notebookId: id!,
-            role: "assistant",
-            content: result.progressMessage
-          });
-        }
+        // Progress message is used internally for timing description, not shown separately
         
         // Create descriptive timing message based on what was actually done
         const previousPhase = aiPhase; // Capture current phase before updating
-        let timingDescription = "Completed";
+        let timingDescription = "";
         
         // Check if we have a progress message that tells us what section was written
         if (result.progressMessage && result.progressMessage.includes("Writing")) {
-          // Extract section name from progress message like "✍️ Writing Introduction... (1/8 completed)"
+          // Extract section name from progress message like "Writing Introduction... (1/8 completed)"
           const sectionMatch = result.progressMessage.match(/Writing (.+?)\.\.\./);
           if (sectionMatch) {
-            timingDescription = `Wrote ${sectionMatch[1]}`;
+            timingDescription = `Completed ${sectionMatch[1]}`;
           }
         } 
-        // Check what actions were performed
-        else if (result.actions && result.actions.length > 0) {
+        // Check what actions were performed - look up readable section name
+        if (!timingDescription && result.actions && result.actions.length > 0) {
           const action = result.actions[0];
-          const actionVerb = action.type === "create" ? "Created" : "Wrote";
-          timingDescription = `${actionVerb} ${action.sectionId}`;
+          let sectionName = "";
+          
+          // For update actions, look up the section to get readable title
+          if (action.type === "update") {
+            const targetSection = currentSections.find(s => s.id === action.sectionId);
+            if (targetSection) {
+              sectionName = targetSection.title;
+            }
+          } else {
+            // For create actions, sectionId is the readable title
+            sectionName = action.sectionId;
+          }
+          
+          // Only set description if we have a readable section name (not a UUID)
+          if (sectionName && !sectionName.match(/^[0-9a-f]{8}-/)) {
+            timingDescription = `Completed ${sectionName}`;
+          }
         }
         // Check phase transitions
-        else if (previousPhase === null && result.phase === "plan") {
-          timingDescription = "Planned document structure";
-        } else if (previousPhase === "execute" && result.phase === "review") {
-          timingDescription = "Reviewed content";
-        } else if (previousPhase === "review" && result.phase === "postprocess") {
-          timingDescription = "Post-processed content";
-        } else if (result.phase === "plan") {
-          timingDescription = "Planned document structure";
-        } else if (result.phase === "review") {
-          timingDescription = "Reviewed content";
-        } else if (result.phase === "postprocess") {
-          timingDescription = "Post-processed content";
+        if (!timingDescription) {
+          if (previousPhase === null && result.phase === "plan") {
+            timingDescription = "Completed planning";
+          } else if (previousPhase === "execute" && result.phase === "review") {
+            timingDescription = "Reviewed content";
+          } else if (previousPhase === "review" && result.phase === "postprocess") {
+            timingDescription = "Revised content";
+          } else if (result.phase === "plan") {
+            timingDescription = "Completed planning";
+          } else if (result.phase === "review") {
+            timingDescription = "Reviewed content";
+          } else if (result.phase === "postprocess") {
+            timingDescription = "Revised content";
+          }
         }
         
-        // Add timing message to chat
-        const timingMessage: Message = {
-          id: `timing-${Date.now()}`,
-          role: "assistant",
-          content: `⏱️ ${timingDescription} in ${apiDuration}s`
-        };
-        setMessages(prev => [...prev, timingMessage]);
-        
-        // Save timing message to database
-        saveMessage.mutate({
-          notebookId: id!,
-          role: "assistant",
-          content: `⏱️ ${timingDescription} in ${apiDuration}s`
-        });
+        // Only show timing message if we have a descriptive message
+        if (timingDescription) {
+          const timingMessage: Message = {
+            id: `timing-${Date.now()}`,
+            role: "assistant",
+            content: `${timingDescription} in ${apiDuration}s`
+          };
+          setMessages(prev => [...prev, timingMessage]);
+          
+          // Save timing message to database
+          saveMessage.mutate({
+            notebookId: id!,
+            role: "assistant",
+            content: `${timingDescription} in ${apiDuration}s`
+          });
+        }
         
         // Update phase and plan
         setAiPhase(result.phase || null);
