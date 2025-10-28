@@ -120,17 +120,22 @@ export default function Settings() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8">Settings</h1>
+      <h1 className="text-3xl font-bold mb-2">Settings</h1>
+      <p className="text-muted-foreground mb-8">Manage your account and premium features</p>
       
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Coins className="h-5 w-5" />
-              Credits & Premium
-            </CardTitle>
-            <CardDescription>Manage your credits for premium AI features</CardDescription>
-          </CardHeader>
+      <div className="space-y-8">
+        {/* Premium Features Section */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">Premium Features</h2>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Coins className="h-5 w-5" />
+                Credits & Premium
+              </CardTitle>
+              <CardDescription>Manage your credits for premium AI features</CardDescription>
+            </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
               <div>
@@ -198,15 +203,15 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5" />
-              AI Model Selection
-            </CardTitle>
-            <CardDescription>Choose your AI speed and quality</CardDescription>
-          </CardHeader>
-          <CardContent>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                AI Model Selection
+              </CardTitle>
+              <CardDescription>Choose your AI speed and quality</CardDescription>
+            </CardHeader>
+            <CardContent>
             <RadioGroup value={selectedModel} onValueChange={handleModelChange}>
               <div className="space-y-3">
                 <div className="flex items-start space-x-3 p-4 rounded-lg border hover-elevate cursor-pointer">
@@ -264,18 +269,23 @@ export default function Settings() {
                 </div>
               </div>
             </RadioGroup>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Transaction Log
-            </CardTitle>
-            <CardDescription>View all credit purchases and usage</CardDescription>
-          </CardHeader>
-          <CardContent>
+        {/* Billing Section */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">Billing</h2>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Transaction Log
+              </CardTitle>
+              <CardDescription>View all credit purchases and usage</CardDescription>
+            </CardHeader>
+            <CardContent>
             {transactionsLoading ? (
               <p className="text-sm text-muted-foreground">Loading transactions...</p>
             ) : transactions.length === 0 ? (
@@ -309,15 +319,20 @@ export default function Settings() {
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Account</CardTitle>
-            <CardDescription>Your account information</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        {/* Account Section */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">Account</h2>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Account Information</CardTitle>
+              <CardDescription>Your account details</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
             <div>
               <label className="text-sm font-medium text-muted-foreground">Username</label>
               <p className="text-base mt-1">{user?.username}</p>
@@ -338,24 +353,30 @@ export default function Settings() {
                 Logout
               </Button>
             </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Appearance</CardTitle>
-            <CardDescription>Customize how the app looks</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Theme</p>
-                <p className="text-sm text-muted-foreground">Switch between light and dark mode</p>
+        {/* Preferences Section */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">Preferences</h2>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Appearance</CardTitle>
+              <CardDescription>Customize how the app looks</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Theme</p>
+                  <p className="text-sm text-muted-foreground">Switch between light and dark mode</p>
+                </div>
+                <ThemeToggle />
               </div>
-              <ThemeToggle />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

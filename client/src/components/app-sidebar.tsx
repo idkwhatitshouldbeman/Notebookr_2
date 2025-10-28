@@ -12,16 +12,18 @@ import {
 } from "@/components/ui/sidebar";
 import { FileText, Home, Settings, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import type { Notebook } from "@shared/schema";
 
 export function AppSidebar() {
+  const [location] = useLocation();
   const { data: notebooks = [] } = useQuery<Notebook[]>({
     queryKey: ["/api/notebooks"],
   });
 
   const privatePages = notebooks.slice(0, 10);
+  const isSettingsPage = location === "/settings";
 
   return (
     <Sidebar>
@@ -56,7 +58,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {privatePages.length > 0 && (
+        {!isSettingsPage && privatePages.length > 0 && (
           <SidebarGroup>
             <SidebarGroupLabel>Private</SidebarGroupLabel>
             <SidebarGroupContent>
