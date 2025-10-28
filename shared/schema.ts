@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, jsonb, index, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -23,6 +23,8 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
+  credits: integer("credits").notNull().default(0),
+  selectedAiModel: varchar("selected_ai_model").notNull().default("free"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -63,6 +65,16 @@ export const sectionVersions = pgTable("section_versions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const transactions = pgTable("transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: varchar("type").notNull(), // "purchase" | "deduction"
+  amount: integer("amount").notNull(),
+  stripePaymentId: varchar("stripe_payment_id"),
+  description: text("description").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const insertNotebookSchema = createInsertSchema(notebooks).omit({
   id: true,
   userId: true,
@@ -91,6 +103,11 @@ export const insertUserSchema = createInsertSchema(users).omit({
   profileImageUrl: z.string().optional().nullable(),
 });
 
+export const insertTransactionSchema = createInsertSchema(transactions).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertNotebook = z.infer<typeof insertNotebookSchema>;
@@ -100,3 +117,5 @@ export type Section = typeof sections.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
 export type SectionVersion = typeof sectionVersions.$inferSelect;
+export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
+export type Transaction = typeof transactions.$inferSelect;
