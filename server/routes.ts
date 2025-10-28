@@ -260,6 +260,11 @@ export function registerRoutes(app: Express): Server {
 
       const selectedPackage = packages[pkg];
       
+      // Construct proper URLs with scheme
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : "http://localhost:5000";
+      
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: [
@@ -276,8 +281,8 @@ export function registerRoutes(app: Express): Server {
           },
         ],
         mode: "payment",
-        success_url: `${process.env.REPLIT_DEV_DOMAIN || "http://localhost:5000"}/settings?payment=success`,
-        cancel_url: `${process.env.REPLIT_DEV_DOMAIN || "http://localhost:5000"}/settings?payment=cancelled`,
+        success_url: `${baseUrl}/settings?payment=success`,
+        cancel_url: `${baseUrl}/settings?payment=cancelled`,
         metadata: {
           userId: req.user.id,
           credits: selectedPackage.credits.toString(),
