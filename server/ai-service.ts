@@ -173,12 +173,10 @@ WHEN TO ASK QUESTIONS (hasQuestions = true):
 - You're missing critical context about their audience, use case, or requirements
 - You want to explore different angles or possibilities they might not have considered
 
-Example questions to ask:
-- "What's the main goal you're trying to achieve with this?"
+Example questions to ask (keep it SHORT - just 1-2 questions):
 - "Who will be reading this?"
-- "What's the context - is this for school, work, or something else?"
-- "Are there specific points or angles you definitely want me to cover?"
-- "How detailed or in-depth should this be?"
+- "What's the main angle - historical figures, scientific principles, or something else?"
+- "How detailed should this be?"
 
 WHEN TO PROCEED (hasQuestions = false):
 - You have a CRYSTAL CLEAR understanding of what they want
@@ -208,7 +206,7 @@ CRITICAL SECTION NAMING RULES:
 - Examples for "why cats are cute": "Adorable Physical Features", "Endearing Behaviors", "The Science of Cuteness"
 - Examples for "React hooks": "Understanding useState", "Working with useEffect", "Custom Hook Patterns"
 
-If hasQuestions is true, include 2-4 conversational questions in the questions array.
+If hasQuestions is true, include ONLY 1-2 SHORT conversational questions (we'll ask them one at a time).
 If hasQuestions is false, questions must be empty array [] and you MUST populate requiredSections and tasks with MEANINGFUL names.`;
 
     const planResult = await generateWithFallback({
@@ -277,11 +275,21 @@ If hasQuestions is false, questions must be empty array [] and you MUST populate
       
       console.log("❓ AI has questions - pausing for user input");
       console.log("Questions:", plan.questions);
-      const updatedMemory = { plan, currentPhase: "awaiting_answers" };
+      
+      // Ask ONE question at a time for more conversational flow
+      const currentQuestionIndex = 0;
+      const updatedMemory = { 
+        plan, 
+        currentPhase: "awaiting_answers",
+        questionIndex: currentQuestionIndex,
+        allQuestions: plan.questions,
+        answers: []
+      };
+      
       return {
         phase: "plan",
         actions: [],
-        message: plan.questions.join(" "),
+        message: plan.questions[currentQuestionIndex], // Just ask the first question
         aiMemory: updatedMemory,
         confidence: "high",
         suggestedTitle: plan.suggestedTitle,
@@ -312,48 +320,75 @@ If hasQuestions is false, questions must be empty array [] and you MUST populate
     console.log("💬 User answered questions, updating plan...");
     
     const plan = aiMemory.plan;
-    const updatePrompt = `Continue the conversation to understand what the user needs.
+    const questionIndex = aiMemory.questionIndex || 0;
+    const allQuestions = aiMemory.allQuestions || plan.questions || [];
+    const answers = aiMemory.answers || [];
+    
+    // Store the current answer
+    answers.push({
+      question: allQuestions[questionIndex],
+      answer: instruction
+    });
+    
+    // Check if there are more questions to ask
+    const nextQuestionIndex = questionIndex + 1;
+    if (nextQuestionIndex < allQuestions.length) {
+      console.log(`❓ Asking question ${nextQuestionIndex + 1} of ${allQuestions.length}`);
+      const updatedMemory = { 
+        plan, 
+        currentPhase: "awaiting_answers",
+        questionIndex: nextQuestionIndex,
+        allQuestions,
+        answers
+      };
+      
+      return {
+        phase: "plan",
+        actions: [],
+        message: allQuestions[nextQuestionIndex],
+        aiMemory: updatedMemory,
+        confidence: "high",
+        suggestedTitle: plan.suggestedTitle,
+        plan: plan,
+        shouldContinue: false,
+        isComplete: false
+      };
+    }
+    
+    // All questions answered, now create the final plan
+    console.log("✅ All questions answered, creating final plan");
+    const answersText = answers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join('\n\n');
+    
+    const updatePrompt = `Create the final document plan based on the conversation.
 
 ORIGINAL REQUEST: ${plan.variables?.originalInstruction || 'document'}
-YOUR PREVIOUS QUESTIONS: ${plan.questions?.join(' ') || 'none'}
-THEIR ANSWER: "${instruction}"
+CONVERSATION:
+${answersText}
 
-YOUR OPTIONS:
-1. If you now have CRYSTAL CLEAR understanding → Set hasQuestions = false and create the plan
-2. If you need MORE clarity or want to dig deeper → Set hasQuestions = true and ask follow-up questions
-
-Be conversational and natural. Dig into:
-- Their real goal and purpose
-- What success looks like for this document
-- Any specific requirements or preferences
-- The context and audience
+Now create the complete document plan with MEANINGFUL section names.
 
 Return complete JSON:
 {
   "variables": {
     "topic": "updated topic",
-    "targetLength": "extract from answer (e.g., '5 pages')",
-    "documentType": "extract type (e.g., 'research paper')",
-    "targetAudience": "extract audience (e.g., 'college students')",
+    "targetLength": "extract from answers",
+    "documentType": "extract type",
+    "targetAudience": "extract audience",
     "focusAreas": ["specific topics"],
     "originalInstruction": "${plan.variables?.originalInstruction || instruction}",
-    "hasQuestions": true/false
+    "hasQuestions": false
   },
-  "questions": ["follow-up question 1", "follow-up question 2"],
+  "questions": [],
   "suggestedTitle": "clear title",
-  "requiredSections": ["section1", "section2", "section3"],
+  "requiredSections": ["Meaningful Name 1", "Meaningful Name 2", "Meaningful Name 3"],
   "tasks": [
-    {"action": "create", "section": "section1", "description": "write about X", "done": false},
-    {"action": "create", "section": "section2", "description": "write about Y", "done": false}
+    {"action": "create", "section": "Meaningful Name 1", "description": "write about X", "done": false}
   ]
 }
 
 CRITICAL SECTION NAMING RULES:
 - DO NOT use generic names like "Introduction", "Body", "Conclusion"
-- DO use DESCRIPTIVE names that tell what the chapter is about
-
-If hasQuestions is true: Include conversational follow-up questions
-If hasQuestions is false: Empty questions array and MUST populate requiredSections and tasks arrays`;
+- DO use DESCRIPTIVE names that tell what the chapter is about`;
 
     const updateResult = await generateWithFallback({
       messages: [
@@ -387,22 +422,8 @@ If hasQuestions is false: Empty questions array and MUST populate requiredSectio
       }
     }
 
-    // Check if AI wants to ask more questions
-    if (updatedPlan.variables?.hasQuestions) {
-      console.log("❓ AI has follow-up questions - continuing conversation");
-      const updatedMemory = { plan: updatedPlan, currentPhase: "awaiting_answers" };
-      return {
-        phase: "plan",
-        actions: [],
-        message: updatedPlan.questions?.join(" ") || "Tell me more about what you're looking for.",
-        aiMemory: updatedMemory,
-        confidence: "high",
-        suggestedTitle: updatedPlan.suggestedTitle,
-        plan: updatedPlan,
-        shouldContinue: false, // Wait for user to answer
-        isComplete: false
-      };
-    }
+    // Plan is complete, proceed to execute
+    console.log("✅ Final plan created from answers");
 
     // AI has all the info it needs, proceed to execute
     const updatedMemory = { plan: updatedPlan, currentPhase: "execute" };
