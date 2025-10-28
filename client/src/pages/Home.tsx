@@ -71,8 +71,6 @@ export default function Home() {
     deleteNotebook.mutate(id);
   };
 
-  const recentNotebooks = notebooks.slice(0, 5);
-
   return (
     <div className="min-h-screen p-12">
       <div className="max-w-4xl mx-auto">
@@ -87,7 +85,16 @@ export default function Home() {
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {recentNotebooks.map((notebook) => (
+            <Card 
+              className="p-6 hover-elevate cursor-pointer transition-all border-dashed flex flex-col items-center justify-center min-h-[140px]"
+              onClick={() => handleCreateNotebook("Untitled Notebook", "", [])}
+              data-testid="card-new-notebook"
+            >
+              <Plus className="h-8 w-8 text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">New notebook</p>
+            </Card>
+            
+            {notebooks.map((notebook) => (
               <Card 
                 key={notebook.id}
                 className="p-6 hover-elevate cursor-pointer transition-all relative group"
@@ -125,15 +132,6 @@ export default function Home() {
                 </p>
               </Card>
             ))}
-            
-            <Card 
-              className="p-6 hover-elevate cursor-pointer transition-all border-dashed flex flex-col items-center justify-center min-h-[140px]"
-              onClick={() => handleCreateNotebook("Untitled Notebook", "", [])}
-              data-testid="card-new-notebook"
-            >
-              <Plus className="h-8 w-8 text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">New notebook</p>
-            </Card>
           </div>
         </div>
       </div>
