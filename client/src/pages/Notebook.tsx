@@ -333,14 +333,33 @@ export default function Notebook() {
           });
         }
         
-        // Create descriptive timing message based on what was done
+        // Create descriptive timing message based on what was actually done
+        const previousPhase = aiPhase; // Capture current phase before updating
         let timingDescription = "Completed";
-        if (result.phase === "plan") {
-          timingDescription = "Planned document structure";
-        } else if (result.phase === "execute" && result.actions && result.actions.length > 0) {
+        
+        // Check if we have a progress message that tells us what section was written
+        if (result.progressMessage && result.progressMessage.includes("Writing")) {
+          // Extract section name from progress message like "✍️ Writing Introduction... (1/8 completed)"
+          const sectionMatch = result.progressMessage.match(/Writing (.+?)\.\.\./);
+          if (sectionMatch) {
+            timingDescription = `Wrote ${sectionMatch[1]}`;
+          }
+        } 
+        // Check what actions were performed
+        else if (result.actions && result.actions.length > 0) {
           const action = result.actions[0];
           const actionVerb = action.type === "create" ? "Created" : "Wrote";
           timingDescription = `${actionVerb} ${action.sectionId}`;
+        }
+        // Check phase transitions
+        else if (previousPhase === null && result.phase === "plan") {
+          timingDescription = "Planned document structure";
+        } else if (previousPhase === "execute" && result.phase === "review") {
+          timingDescription = "Reviewed content";
+        } else if (previousPhase === "review" && result.phase === "postprocess") {
+          timingDescription = "Post-processed content";
+        } else if (result.phase === "plan") {
+          timingDescription = "Planned document structure";
         } else if (result.phase === "review") {
           timingDescription = "Reviewed content";
         } else if (result.phase === "postprocess") {
@@ -363,7 +382,6 @@ export default function Notebook() {
         });
         
         // Update phase and plan
-        const previousPhase = aiPhase;
         setAiPhase(result.phase || null);
         if (result.plan) {
           setCurrentPlan(result.plan);
