@@ -6,7 +6,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
-import { MainHeader } from "@/components/MainHeader";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { useAuth } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/lib/protected-route";
@@ -49,12 +48,9 @@ function AppLayout() {
     <SidebarProvider style={style as React.CSSProperties}>
       <div className="flex h-screen w-full">
         <AppSidebar />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <MainHeader />
-          <main className="flex-1 overflow-auto">
-            <Router />
-          </main>
-        </div>
+        <main className="flex-1 overflow-auto">
+          <Router />
+        </main>
       </div>
     </SidebarProvider>
   );
