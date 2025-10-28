@@ -1,6 +1,6 @@
-import { type Notebook, type InsertNotebook, type Section, type InsertSection, type SectionVersion, type User, type InsertUser, type Message, type InsertMessage, notebooks, sections, sectionVersions, users, messages } from "@shared/schema";
+import { type Notebook, type InsertNotebook, type Section, type InsertSection, type SectionVersion, type User, type InsertUser, type Message, type InsertMessage, type Transaction, type InsertTransaction, notebooks, sections, sectionVersions, users, messages, transactions } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, asc } from "drizzle-orm";
+import { eq, desc, asc, sql } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -10,8 +10,10 @@ const PostgresSessionStore = connectPg(session);
 export interface IStorage {
   // User operations (required for standalone auth)
   getUser(id: string): Promise<User | undefined>;
+  getUserById(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUserAiModel(userId: string, model: string): Promise<void>;
   
   // Session store
   sessionStore: session.Store;
@@ -38,6 +40,11 @@ export interface IStorage {
   // Messages
   getMessagesByNotebookId(notebookId: string): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
+  
+  // Credits and Transactions
+  addCredits(userId: string, credits: number, stripePaymentId: string, description: string): Promise<void>;
+  deductCredits(userId: string, credits: number, description: string): Promise<boolean>;
+  getUserTransactions(userId: string): Promise<Transaction[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -178,6 +185,68 @@ export class DatabaseStorage implements IStorage {
   async createMessage(insertMessage: InsertMessage): Promise<Message> {
     const result = await db.insert(messages).values(insertMessage).returning();
     return result[0];
+  }
+
+  // Credits and Transactions
+  async getUserById(id: string): Promise<User | undefined> {
+    return await this.getUser(id);
+  }
+
+  async updateUserAiModel(userId: string, model: string): Promise<void> {
+    await db.update(users)
+      .set({ selectedAiModel: model })
+      .where(eq(users.id, userId));
+  }
+
+  async addCredits(userId: string, credits: number, stripePaymentId: string, description: string): Promise<void> {
+    // Add credits to user
+    await db.update(users)
+      .set({ credits: sql`${users.credits} + ${credits}` })
+      .where(eq(users.id, userId));
+    
+    // Record transaction
+    await db.insert(transactions).values({
+      userId,
+      type: "purchase",
+      amount: credits,
+      stripePaymentId,
+      description,
+    });
+  }
+
+  async deductCredits(userId: string, credits: number, description: string): Promise<boolean> {
+    const user = await this.getUserById(userId);
+    if (!user || user.credits < credits) {
+      return false;
+    }
+
+    // Deduct credits
+    await db.update(users)
+      .set({ credits: sql`${users.credits} - ${credits}` })
+      .where(eq(users.id, userId));
+    
+    // Record transaction
+    await db.insert(transactions).values({
+      userId,
+      type: "deduction",
+      amount: -credits,
+      description,
+    });
+
+    // If credits hit zero, auto-downgrade to free tier
+    const updatedUser = await this.getUserById(userId);
+    if (updatedUser && updatedUser.credits <= 0) {
+      await this.updateUserAiModel(userId, "free");
+    }
+
+    return true;
+  }
+
+  async getUserTransactions(userId: string): Promise<Transaction[]> {
+    return await db.select()
+      .from(transactions)
+      .where(eq(transactions.userId, userId))
+      .orderBy(desc(transactions.createdAt));
   }
 }
 

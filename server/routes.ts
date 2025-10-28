@@ -5,6 +5,14 @@ import { insertNotebookSchema, insertSectionSchema, insertMessageSchema } from "
 import { z } from "zod";
 import { setupAuth, isAuthenticated } from "./auth";
 import { generateWithFallback } from "./ai-service";
+import Stripe from "stripe";
+
+// Initialize Stripe only if secret is available
+const stripe = process.env.STRIPE_SECRET_KEY 
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-09-30.clover",
+    })
+  : null;
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication - now includes /api/register, /api/login, /api/logout, /api/user
@@ -222,6 +230,150 @@ export function registerRoutes(app: Express): Server {
       console.error("Error stack:", (error as Error)?.stack);
       res.status(500).json({ error: "Failed to generate content" });
     }
+  });
+
+  // Stripe: Create checkout session for credit packages
+  app.post("/api/stripe/create-checkout", isAuthenticated, async (req: any, res) => {
+    if (!stripe) {
+      return res.status(503).json({ error: "Stripe is not configured" });
+    }
+
+    try {
+      const schema = z.object({
+        package: z.enum(["5", "10", "25", "50"]),
+      });
+      
+      const result = schema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      const { package: pkg } = result.data;
+      
+      // Credit packages with bonuses
+      const packages: Record<string, { price: number; credits: number; name: string }> = {
+        "5": { price: 500, credits: 5000, name: "Starter - 5,000 credits" },
+        "10": { price: 1000, credits: 11000, name: "Popular - 11,000 credits (+10% bonus)" },
+        "25": { price: 2500, credits: 30000, name: "Pro - 30,000 credits (+20% bonus)" },
+        "50": { price: 5000, credits: 65000, name: "Best Value - 65,000 credits (+30% bonus)" },
+      };
+
+      const selectedPackage = packages[pkg];
+      
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: selectedPackage.name,
+                description: `Purchase ${selectedPackage.credits.toLocaleString()} credits for Notebookr premium AI features`,
+              },
+              unit_amount: selectedPackage.price,
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        success_url: `${process.env.REPLIT_DEV_DOMAIN || "http://localhost:5000"}/settings?payment=success`,
+        cancel_url: `${process.env.REPLIT_DEV_DOMAIN || "http://localhost:5000"}/settings?payment=cancelled`,
+        metadata: {
+          userId: req.user.id,
+          credits: selectedPackage.credits.toString(),
+          package: pkg,
+        },
+      });
+
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Stripe checkout error:", error);
+      res.status(500).json({ error: "Failed to create checkout session" });
+    }
+  });
+
+  // Stripe: Webhook to handle successful payments
+  app.post("/api/stripe/webhook", async (req, res) => {
+    if (!stripe) {
+      return res.status(503).json({ error: "Stripe is not configured" });
+    }
+
+    const sig = req.headers["stripe-signature"];
+    
+    if (!sig) {
+      return res.status(400).send("Missing stripe-signature header");
+    }
+
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET || ""
+      );
+    } catch (err: any) {
+      console.error("Webhook signature verification failed:", err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const userId = session.metadata?.userId;
+      const credits = parseInt(session.metadata?.credits || "0");
+
+      if (userId && credits > 0) {
+        try {
+          await storage.addCredits(userId, credits, session.id, `Purchased ${session.metadata?.package} package`);
+          console.log(`✅ Added ${credits} credits to user ${userId}`);
+        } catch (error) {
+          console.error("Error adding credits:", error);
+        }
+      }
+    }
+
+    res.json({ received: true });
+  });
+
+  // User: Get current user's credits
+  app.get("/api/user/credits", isAuthenticated, async (req: any, res) => {
+    const user = await storage.getUserById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    res.json({ credits: user.credits, selectedAiModel: user.selectedAiModel });
+  });
+
+  // User: Update AI model selection
+  app.patch("/api/user/ai-model", isAuthenticated, async (req: any, res) => {
+    const schema = z.object({
+      model: z.enum(["free", "fast", "ultra"]),
+    });
+    
+    const result = schema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    const { model } = result.data;
+    const user = await storage.getUserById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Prevent selecting paid models without credits
+    if ((model === "fast" || model === "ultra") && user.credits <= 0) {
+      return res.status(403).json({ error: "Insufficient credits for premium models" });
+    }
+
+    await storage.updateUserAiModel(req.user.id, model);
+    res.json({ success: true, model });
+  });
+
+  // User: Get transaction history
+  app.get("/api/user/transactions", isAuthenticated, async (req: any, res) => {
+    const transactions = await storage.getUserTransactions(req.user.id);
+    res.json(transactions);
   });
 
   const httpServer = createServer(app);
