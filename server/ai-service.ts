@@ -728,18 +728,24 @@ Respond with JSON:
     try {
       // Try to parse directly
       execResponse = JSON.parse(execResult.content);
-    } catch {
+    } catch (parseError) {
+      console.error("❌ JSON Parse Error - Direct parse failed");
+      console.error("Raw AI response length:", execResult.content.length);
+      console.error("First 500 chars:", execResult.content.substring(0, 500));
+      console.error("Last 500 chars:", execResult.content.substring(Math.max(0, execResult.content.length - 500)));
+      
       // Try to extract JSON from markdown code blocks
       const jsonMatch = execResult.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
       if (jsonMatch) {
         try {
           execResponse = JSON.parse(jsonMatch[1]);
-        } catch {
-          console.error("Failed to parse JSON from markdown:", execResult.content);
+          console.log("✅ Successfully extracted JSON from markdown code block");
+        } catch (markdownError) {
+          console.error("❌ Failed to parse JSON from markdown:", jsonMatch[1].substring(0, 500));
           execResponse = { actions: [], message: "AI response was not valid JSON" };
         }
       } else {
-        console.error("Failed to parse AI response:", execResult.content);
+        console.error("❌ No JSON code block found in response");
         execResponse = { actions: [], message: "AI response was not valid JSON" };
       }
     }
