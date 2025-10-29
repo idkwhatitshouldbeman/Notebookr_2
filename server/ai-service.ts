@@ -38,6 +38,113 @@ interface AIResponse {
   provider: "openrouter" | "openai";
 }
 
+type StreamChunk = {
+  type: "chunk";
+  content: string;
+} | {
+  type: "done";
+  fullContent: string;
+  model: string;
+  provider: "openrouter" | "openai";
+} | {
+  type: "error";
+  error: string;
+};
+
+// Streaming version of AI generation
+export async function* generateWithFallbackStream(
+  request: AIRequest
+): AsyncGenerator<StreamChunk> {
+  console.log("🤖 Starting AI streaming with fallback system...");
+
+  // Try OpenRouter with all combinations
+  for (let keyIndex = 0; keyIndex < OPENROUTER_KEYS.length; keyIndex++) {
+    const apiKey = OPENROUTER_KEYS[keyIndex];
+    console.log(`🔑 Trying OpenRouter key ${keyIndex + 1} (streaming)...`);
+
+    for (let modelIndex = 0; modelIndex < TEXT_MODELS.length; modelIndex++) {
+      const model = TEXT_MODELS[modelIndex];
+      
+      try {
+        console.log(`  📡 Attempting streaming model: ${model}`);
+        
+        const openrouter = new OpenAI({
+          apiKey,
+          baseURL: "https://openrouter.ai/api/v1",
+        });
+
+        const stream = await openrouter.chat.completions.create({
+          model,
+          messages: request.messages as any,
+          temperature: request.temperature ?? 0.7,
+          max_tokens: request.max_tokens ?? 2000,
+          stream: true,
+        });
+
+        let fullContent = "";
+        let hasContent = false;
+
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (content) {
+            hasContent = true;
+            fullContent += content;
+            yield { type: "chunk", content };
+          }
+        }
+        
+        if (hasContent) {
+          console.log(`✅ Streaming success with ${model} (key ${keyIndex + 1})`);
+          yield { 
+            type: "done", 
+            fullContent, 
+            model, 
+            provider: "openrouter" 
+          };
+          return;
+        }
+      } catch (error: any) {
+        console.warn(`  ⚠️ Failed streaming ${model}: ${error.message}`);
+        // Continue to next model
+      }
+    }
+  }
+
+  // All OpenRouter attempts failed, use OpenAI fallback
+  console.log("⚠️ All OpenRouter streaming failed, using OpenAI fallback...");
+  
+  try {
+    const stream = await openaiClient.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: request.messages as any,
+      temperature: request.temperature ?? 0.7,
+      max_tokens: request.max_tokens ?? 2000,
+      stream: true,
+    });
+
+    let fullContent = "";
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || "";
+      if (content) {
+        fullContent += content;
+        yield { type: "chunk", content };
+      }
+    }
+    
+    console.log("✅ OpenAI streaming successful");
+    yield { 
+      type: "done", 
+      fullContent, 
+      model: "gpt-4o-mini", 
+      provider: "openai" 
+    };
+  } catch (error: any) {
+    console.error("❌ OpenAI streaming fallback failed:", error.message);
+    yield { type: "error", error: "All AI providers failed" };
+  }
+}
+
+// Non-streaming version (kept for backward compatibility)
 export async function generateWithFallback(
   request: AIRequest
 ): Promise<AIResponse> {
@@ -131,6 +238,81 @@ interface ThreePhaseResponse {
   isComplete?: boolean;
   shouldContinue?: boolean;
   plan?: any;
+}
+
+// Streaming event types
+type ThreePhaseStreamEvent = 
+  | { type: "content_chunk"; content: string }
+  | { type: "phase_update"; phase: string; message: string }
+  | { type: "action"; action: any }
+  | { type: "progress"; message: string }
+  | { type: "complete"; result: ThreePhaseResponse }
+  | { type: "error"; error: string };
+
+// Streaming version of three-phase generation with heartbeats to prevent 504s
+export async function* threePhaseGenerationStream(
+  request: ThreePhaseRequest
+): AsyncGenerator<ThreePhaseStreamEvent> {
+  const { instruction, sections, aiMemory, notebookId, iterationCount = 0 } = request;
+  
+  // Emit initial status
+  yield { type: "phase_update", phase: "processing", message: "Starting AI generation..." };
+  
+  try {
+    // Start the AI generation in the background
+    let generationComplete = false;
+    let generationResult: ThreePhaseResponse | null = null;
+    let generationError: any = null;
+    
+    // Run generation in background
+    threePhaseGeneration(request).then(
+      result => {
+        generationComplete = true;
+        generationResult = result;
+      },
+      error => {
+        generationComplete = true;
+        generationError = error;
+      }
+    );
+    
+    // Send heartbeat events every 5 seconds while waiting
+    let heartbeatCount = 0;
+    while (!generationComplete) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      heartbeatCount++;
+      yield { type: "progress", message: `Processing... (${heartbeatCount * 5}s elapsed)` };
+    }
+    
+    // Check if there was an error
+    if (generationError) {
+      throw generationError;
+    }
+    
+    const result = generationResult!;
+    
+    // Stream the result content if there are actions
+    if (result.actions && result.actions.length > 0) {
+      for (const action of result.actions) {
+        yield { type: "action", action };
+        
+        // Stream the content in chunks
+        const content = action.content;
+        const chunkSize = 50; // characters per chunk
+        for (let i = 0; i < content.length; i += chunkSize) {
+          const chunk = content.substring(i, i + chunkSize);
+          yield { type: "content_chunk", content: chunk };
+          // Small delay to simulate real-time streaming
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+      }
+    }
+    
+    yield { type: "complete", result };
+  } catch (error: any) {
+    console.error("Error in streaming generation:", error);
+    yield { type: "error", error: error.message || "Generation failed" };
+  }
 }
 
 export async function threePhaseGeneration(
@@ -289,192 +471,179 @@ If hasQuestions is false, questions must be empty array [] and you MUST populate
       return {
         phase: "plan",
         actions: [],
-        message: plan.questions[currentQuestionIndex], // Just ask the first question
+        message: plan.questions[currentQuestionIndex],
         aiMemory: updatedMemory,
         confidence: "high",
         suggestedTitle: plan.suggestedTitle,
-        plan: plan,
-        shouldContinue: false, // Wait for user to answer
-        isComplete: false
+        plan,
+        shouldContinue: false
       };
     }
 
-    const updatedMemory = { plan, currentPhase: "execute" };
-
-    // Return the plan without executing - let frontend call again
-    return {
-      phase: "plan",
-      actions: [],
-      message: "Document plan created",
-      aiMemory: updatedMemory,
-      confidence: "high",
-      suggestedTitle: plan.suggestedTitle,
-      plan: plan,
-      shouldContinue: true, // Frontend should call again to execute
-      isComplete: false
-    };
-  }
-
-  // Handle user answering questions
-  if (aiMemory.currentPhase === "awaiting_answers") {
-    console.log("💬 User answered questions, updating plan...");
-    
-    const plan = aiMemory.plan;
-    const questionIndex = aiMemory.questionIndex || 0;
-    const allQuestions = aiMemory.allQuestions || plan.questions || [];
-    const answers = aiMemory.answers || [];
-    
-    // Store the current answer
-    answers.push({
-      question: allQuestions[questionIndex],
-      answer: instruction
-    });
-    
-    // Check if there are more questions to ask
-    const nextQuestionIndex = questionIndex + 1;
-    if (nextQuestionIndex < allQuestions.length) {
-      console.log(`❓ Asking question ${nextQuestionIndex + 1} of ${allQuestions.length}`);
-      const updatedMemory = { 
-        plan, 
-        currentPhase: "awaiting_answers",
-        questionIndex: nextQuestionIndex,
-        allQuestions,
-        answers
-      };
+    // Safety: Ensure tasks array exists
+    if (!plan.tasks || plan.tasks.length === 0) {
+      console.warn("⚠️ Plan has no tasks - generating from requiredSections");
+      plan.tasks = (plan.requiredSections || []).map((section: string) => ({
+        action: "create",
+        section,
+        description: `Write content for ${section}`,
+        done: false
+      }));
       
-      return {
-        phase: "plan",
-        actions: [],
-        message: allQuestions[nextQuestionIndex],
-        aiMemory: updatedMemory,
-        confidence: "high",
-        suggestedTitle: plan.suggestedTitle,
-        plan: plan,
-        shouldContinue: false,
-        isComplete: false
-      };
-    }
-    
-    // All questions answered, now create the final plan
-    console.log("✅ All questions answered, creating final plan");
-    const answersText = answers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join('\n\n');
-    
-    const updatePrompt = `Create the final document plan based on the conversation.
-
-ORIGINAL REQUEST: ${plan.variables?.originalInstruction || 'document'}
-CONVERSATION:
-${answersText}
-
-Now create the complete document plan with MEANINGFUL section names.
-
-Return complete JSON:
-{
-  "variables": {
-    "topic": "updated topic",
-    "targetLength": "extract from answers",
-    "documentType": "extract type",
-    "targetAudience": "extract audience",
-    "focusAreas": ["specific topics"],
-    "originalInstruction": "${plan.variables?.originalInstruction || instruction}",
-    "hasQuestions": false
-  },
-  "questions": [],
-  "suggestedTitle": "clear title",
-  "requiredSections": ["Meaningful Name 1", "Meaningful Name 2", "Meaningful Name 3"],
-  "tasks": [
-    {"action": "create", "section": "Meaningful Name 1", "description": "write about X", "done": false}
-  ]
-}
-
-CRITICAL SECTION NAMING RULES:
-- DO NOT use generic names like "Introduction", "Body", "Conclusion"
-- DO use DESCRIPTIVE names that tell what the chapter is about`;
-
-    const updateResult = await generateWithFallback({
-      messages: [
-        { role: "system", content: "You are a document planning expert. You MUST respond with ONLY valid JSON with requiredSections and tasks arrays populated." },
-        { role: "user", content: updatePrompt }
-      ],
-      temperature: 0.3,
-      max_tokens: 2500,
-    });
-
-    let updatedPlan;
-    try {
-      updatedPlan = JSON.parse(updateResult.content);
-      console.log("✅ Successfully parsed updated plan from user answers");
-    } catch (parseError) {
-      console.warn("⚠️ Failed to parse JSON directly, trying code block extraction...");
-      console.log("Raw content:", updateResult.content);
-      const jsonMatch = updateResult.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-      if (jsonMatch) {
-        try {
-          updatedPlan = JSON.parse(jsonMatch[1]);
-          console.log("✅ Successfully parsed plan from code block");
-        } catch (codeBlockError) {
-          console.error("❌ Failed to parse JSON from code block:", codeBlockError);
-          console.log("Using fallback plan");
-          updatedPlan = { ...plan, variables: { ...plan.variables, hasQuestions: false } };
-        }
-      } else {
-        console.warn("⚠️ No JSON code block found, using fallback plan");
-        updatedPlan = { ...plan, variables: { ...plan.variables, hasQuestions: false } };
+      // If still no tasks, create a default one
+      if (plan.tasks.length === 0) {
+        plan.tasks = [{ action: "create", section: "Content", description: instruction, done: false }];
       }
     }
 
-    // Plan is complete, proceed to execute
-    console.log("✅ Final plan created from answers");
-
-    // AI has all the info it needs, proceed to execute
-    const updatedMemory = { plan: updatedPlan, currentPhase: "execute" };
+    // No questions - proceed directly to execution
+    const updatedMemory = { plan, currentPhase: "execute" };
+    
     return {
       phase: "plan",
       actions: [],
       message: "ok, making it now",
       aiMemory: updatedMemory,
       confidence: "high",
-      suggestedTitle: updatedPlan.suggestedTitle,
-      plan: updatedPlan,
-      shouldContinue: true,
-      isComplete: false
+      suggestedTitle: plan.suggestedTitle,
+      plan,
+      shouldContinue: true
+    };
+  }
+
+  // Handle awaiting answers phase
+  if (aiMemory.currentPhase === "awaiting_answers") {
+    const { allQuestions, answers, questionIndex } = aiMemory;
+    
+    // If we have more questions to ask
+    if (questionIndex + 1 < allQuestions.length) {
+      console.log(`❓ Asking question ${questionIndex + 2}/${allQuestions.length}`);
+      const updatedMemory = { 
+        ...aiMemory,
+        questionIndex: questionIndex + 1
+      };
+      
+      return {
+        phase: "plan",
+        actions: [],
+        message: allQuestions[questionIndex + 1],
+        aiMemory: updatedMemory,
+        confidence: "high",
+        shouldContinue: false
+      };
+    }
+
+    // All questions answered - generate actual plan
+    console.log("✅ All questions answered - generating final plan");
+    const answersText = answers.map((a: string, i: number) => 
+      `Q: ${allQuestions[i]}\nA: ${a}`
+    ).join("\n\n");
+
+    const finalPlanPrompt = `Based on the conversation with the user, create a detailed document plan.
+
+ORIGINAL REQUEST: "${instruction}"
+
+CONVERSATION:
+${answersText}
+
+Generate a complete plan with meaningful section names and tasks. Return JSON:
+{
+  "variables": {
+    "topic": "main subject",
+    "targetLength": "extracted from answers",
+    "documentType": "extracted from answers",
+    "targetAudience": "extracted from answers",
+    "tone": "extracted from answers OR professional",
+    "originalInstruction": "${instruction}"
+  },
+  "suggestedTitle": "document title",
+  "requiredSections": ["Meaningful Chapter Name 1", "Meaningful Chapter Name 2"],
+  "tasks": [{"action": "create", "section": "Meaningful Chapter Name 1", "description": "write about X", "done": false}]
+}
+
+CRITICAL: Use DESCRIPTIVE section names, not "Introduction", "Body", "Conclusion", etc.`;
+
+    const finalPlanResult = await generateWithFallback({
+      messages: [
+        { role: "system", content: "You are a document planning expert. You MUST respond with ONLY valid JSON, no markdown, no explanations, no code blocks. Just pure JSON." },
+        { role: "user", content: finalPlanPrompt }
+      ],
+      temperature: 0.5,
+      max_tokens: 1500,
+    });
+
+    let finalPlan;
+    try {
+      finalPlan = JSON.parse(finalPlanResult.content);
+    } catch {
+      const jsonMatch = finalPlanResult.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (jsonMatch) {
+        finalPlan = JSON.parse(jsonMatch[1]);
+      } else {
+        finalPlan = {
+          ...aiMemory.plan,
+          requiredSections: ["Content"],
+          tasks: [{ action: "create", section: "Content", description: instruction, done: false }]
+        };
+      }
+    }
+
+    // Safety: Ensure tasks exist
+    if (!finalPlan.tasks || finalPlan.tasks.length === 0) {
+      finalPlan.tasks = (finalPlan.requiredSections || []).map((section: string) => ({
+        action: "create",
+        section,
+        description: `Write content for ${section}`,
+        done: false
+      }));
+    }
+
+    const updatedMemory = { plan: finalPlan, currentPhase: "execute" };
+    
+    return {
+      phase: "plan",
+      actions: [],
+      message: "ok, making it now",
+      aiMemory: updatedMemory,
+      confidence: "high",
+      suggestedTitle: finalPlan.suggestedTitle,
+      plan: finalPlan,
+      shouldContinue: true
     };
   }
 
   // Phase 2: Execution
   if (aiMemory.currentPhase === "execute") {
-    console.log("⚡ Phase 2: Executing tasks...");
-    
     const plan = aiMemory.plan;
     
-    // Safety check: ensure tasks array exists
-    if (!plan.tasks || !Array.isArray(plan.tasks)) {
-      console.error("❌ Plan is missing tasks array:", plan);
-      // Create default tasks from requiredSections if they exist
-      if (plan.requiredSections && Array.isArray(plan.requiredSections) && plan.requiredSections.length > 0) {
-        plan.tasks = plan.requiredSections.map((section: string) => ({
-          action: "create",
-          section,
-          description: `Write comprehensive content for ${section}`,
-          done: false
-        }));
-        console.log("✅ Generated tasks from requiredSections:", plan.tasks);
-      } else {
-        // No tasks and no sections - fallback to generic task
-        plan.tasks = [{
-          action: "create",
-          section: "Content",
-          description: instruction,
-          done: false
-        }];
-        console.log("⚠️ Using fallback task");
+    // Safety: Ensure plan.tasks exists
+    if (!plan.tasks || plan.tasks.length === 0) {
+      console.warn("⚠️ Execute phase but no tasks - generating from requiredSections");
+      plan.tasks = (plan.requiredSections || []).map((section: string) => ({
+        action: "create",
+        section,
+        description: `Write content for ${section}`,
+        done: false
+      }));
+      
+      if (plan.tasks.length === 0) {
+        console.error("❌ No tasks and no requiredSections - moving to review");
+        return {
+          phase: "review",
+          actions: [],
+          message: "No tasks to execute",
+          aiMemory: { ...aiMemory, currentPhase: "review" },
+          confidence: "low",
+          shouldContinue: true
+        };
       }
     }
-    
-    const incompleteTasks = plan.tasks.filter((t: any) => !t.done);
-    const nextTask = incompleteTasks[0];
 
+    // Find next undone task
+    const nextTask = plan.tasks.find((t: any) => !t.done);
+    
     if (!nextTask) {
-      // All tasks done, proceed to review automatically
+      console.log("✅ All tasks done - moving to review phase");
       const updatedMemory = { ...aiMemory, currentPhase: "review" };
       return await threePhaseGeneration({
         ...request,
@@ -483,31 +652,33 @@ CRITICAL SECTION NAMING RULES:
       });
     }
 
+    console.log(`📝 Executing task: ${nextTask.action} "${nextTask.section}"`);
+    
     const vars = plan.variables || {};
+    const completedSections = sections.filter((s: any) => s.content && s.content.length >= 500);
+    const totalSections = plan.requiredSections?.length || plan.tasks.length;
     
-    // Calculate target word count based on page length
-    // Standard: Times New Roman 12pt, double-spaced = ~250 words per page
-    let targetWordsPerSection = 300; // default
-    const targetLength = vars.targetLength || '';
-    const pageMatch = targetLength.match(/(\d+)\s*page/i);
-    if (pageMatch) {
-      const pageCount = parseInt(pageMatch[1]);
-      const totalWords = pageCount * 250; // 250 words per page standard
-      const sectionCount = plan.requiredSections?.length || plan.tasks?.length || 1;
-      targetWordsPerSection = Math.floor(totalWords / sectionCount);
+    // Calculate target word count per section
+    let targetWordsPerSection = 250; // Default
+    if (vars.targetLength) {
+      const lengthMatch = vars.targetLength.match(/(\d+)\s*(page|pages)/i);
+      if (lengthMatch) {
+        const totalPages = parseInt(lengthMatch[1]);
+        const totalWords = totalPages * 250; // 250 words per page
+        targetWordsPerSection = Math.ceil(totalWords / totalSections);
+      }
     }
-    
-    const executionPrompt = `You are executing a document creation plan. Write COMPREHENSIVE, DETAILED, and SUBSTANTIAL content.
 
-DOCUMENT CONTEXT:
-- Topic: ${vars.topic || 'Not specified'}
-- Target Length: ${vars.targetLength || 'comprehensive'} (IMPORTANT: When formatted in Times New Roman 12pt, double-spaced, this should match the page count!)
-- Document Type: ${plan.documentType || vars.documentType}
-- Tone: ${vars.tone || 'academic'}
-- Focus Areas: ${vars.focusAreas?.join(', ') || 'general coverage'}
-${vars.criteria ? `- Special Criteria: ${vars.criteria}` : ''}
+    const executionPrompt = `You are writing a document section by section.
 
-OVERALL GOAL: ${plan.overallGoal}
+DOCUMENT PLAN:
+Topic: ${vars.topic || "General"}
+Target Length: ${vars.targetLength || "Not specified"}
+Type: ${vars.documentType || "document"}
+Tone: ${vars.tone || "professional"}
+Target Audience: ${vars.targetAudience || "general"}
+
+PROGRESS: ${completedSections.length}/${totalSections} sections completed
 
 CURRENT SECTIONS:
 ${sections.map(s => `## ${s.title}\n${s.content || '(empty)'}`).join('\n\n')}
@@ -590,211 +761,182 @@ Respond with JSON:
       updatedMemory.currentPhase = "review";
     }
 
-    // Calculate progress for user feedback
-    const completedTasks = updatedTasks.filter((t: any) => t.done).length;
-    const totalTasks = updatedTasks.length;
-    const progressMessage = totalTasks > 0 
-      ? `Writing ${nextTask.section}... (${completedTasks}/${totalTasks} completed)`
-      : `Writing ${nextTask.section}...`;
+    // Generate progress message for UI
+    const progressMessage = `Writing ${nextTask.section}... (${completedSections.length + 1}/${totalSections} completed)`;
 
     return {
       phase: "execute",
       actions: execResponse.actions || [],
-      message: execResponse.message || "Executed task",
-      progressMessage, // New field for showing progress in chat
+      message: execResponse.message || `Completed ${nextTask.section}`,
+      progressMessage,
       aiMemory: updatedMemory,
       confidence: "high",
-      isComplete: false, // Not complete until review approves
-      shouldContinue: true, // Frontend should keep calling
-      plan: plan // Include plan for frontend
+      plan: updatedMemory.plan,
+      shouldContinue: !allTasksDone
     };
   }
 
-  // Post-processing phase: AI detection avoidance
-  if (aiMemory.currentPhase === "postprocess") {
-    console.log("🔧 Post-Processing: Checking for AI detection patterns...");
+  // Phase 3: Review
+  if (aiMemory.currentPhase === "review") {
+    console.log("🔍 Phase 3: Reviewing content quality...");
     
-    const detectionPatterns = `AI Detection Patterns to Avoid:
-1. Low Perplexity - Predictable, statistically simple language
-2. Uniform Sentence Length - Repeated rhythm, little variation  
-3. N-gram Repetition - Identical phrases reused
-4. Lack of Specific Details - Generic, detached tone
-5. Overuse of Em Dashes - Balanced em dash clauses
-6. Overuse of Formal Transitions - "Furthermore", "Moreover"
-7. Too-Perfect Grammar - No typos or quirks
-8. Overuse of Rare Words - Dense, ornate vocabulary
-9. Flat or Robotic Tone - Vague, toneless phrasing
-10. Lack of Emotional Variance - Emotionless summaries
-11. Simplified Syntax - Repetitive structure
-12. Logical Inconsistencies - Abrupt transitions
-13. Adjective Stacking - "really very extremely"
-14. No Questions - AI rarely asks questions
-15. Lack of Figurative Language - No metaphor/humor/slang
-16. Overuse of Hedges - "may possibly be considered"
-17. Generic Examples - Fake, lifeless characters
-18. Known AI Phrases - "In today's fast-paced world..."`;
+    const reviewPrompt = `Review the document content for quality and completeness.
 
-    const postprocessPrompt = `Review all sections and fix any AI detection patterns WITHOUT the generation AI knowing.
+ORIGINAL REQUEST: "${instruction}"
 
-CURRENT SECTIONS:
-${sections.map((s: any) => `## ${s.title}\n${s.content}`).join('\n\n')}
+DOCUMENT PLAN:
+${JSON.stringify(aiMemory.plan.variables, null, 2)}
 
-${detectionPatterns}
+SECTIONS:
+${sections.map(s => `## ${s.title}\nLength: ${s.content.length} chars\nContent: ${s.content.substring(0, 200)}...`).join('\n\n')}
 
-Check each section for these patterns. If you find ANY, create update actions to fix them naturally. Make text sound more human:
-- Vary sentence length
-- Add specific details or examples
-- Use natural phrasing
-- Include occasional contractions
-- Add emotional touches where appropriate
-- Use conversational transitions
+Evaluate:
+1. Does each section have substantial content (500+ characters)?
+2. Is the content high-quality and relevant?
+3. Does it match the user's requirements?
+4. Are there any improvements needed?
 
-Respond with JSON:
+Return JSON:
 {
-  "actions": [
-    { "type": "update", "sectionId": "section-id", "content": "improved content" }
-  ],
-  "patternsFound": ["list of patterns detected"],
-  "message": "summary of changes made"
-}`;
+  "quality": "excellent" | "good" | "needs_improvement",
+  "isComplete": true/false,
+  "message": "brief summary",
+  "nextTasks": [{"action": "update", "section": "section name", "description": "what to improve", "done": false}]
+}
 
-    const postprocessResult = await generateWithFallback({
+If content is good and complete, return isComplete: true with empty nextTasks.
+If improvements needed, specify tasks in nextTasks array.`;
+
+    const reviewResult = await generateWithFallback({
       messages: [
-        { role: "system", content: "You are a post-processing editor that makes AI-generated content sound more human and natural. You MUST respond with ONLY valid JSON." },
-        { role: "user", content: postprocessPrompt }
+        { role: "system", content: "You are a content quality reviewer. You MUST respond with ONLY valid JSON, no markdown, no explanations, no code blocks. Just pure JSON." },
+        { role: "user", content: reviewPrompt }
       ],
-      temperature: 0.7,
-      max_tokens: 3000,
+      temperature: 0.3,
+      max_tokens: 1000,
     });
 
-    let postprocessResponse;
+    let review;
     try {
-      postprocessResponse = JSON.parse(postprocessResult.content);
+      review = JSON.parse(reviewResult.content);
     } catch {
-      const jsonMatch = postprocessResult.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-      if (jsonMatch?.[1]) {
-        postprocessResponse = JSON.parse(jsonMatch[1]);
+      const jsonMatch = reviewResult.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (jsonMatch) {
+        review = JSON.parse(jsonMatch[1]);
       } else {
-        postprocessResponse = { actions: [], patternsFound: [], message: "No changes needed" };
+        review = { quality: "good", isComplete: true, message: "Review complete", nextTasks: [] };
       }
     }
 
-    // If patterns were found and fixed, return actions
-    if (postprocessResponse.actions && postprocessResponse.actions.length > 0) {
-      console.log(`🔧 Post-processing: Fixed ${postprocessResponse.patternsFound?.length || 0} patterns`);
+    // Early exit: Check if all sections are green (>500 chars)
+    const allSectionsGreen = sections.every((s: any) => s.content && s.content.length >= 500);
+    if (allSectionsGreen) {
+      console.log("✅ All sections are green (>500 chars) - work is complete!");
+      review.isComplete = true;
+      review.nextTasks = [];
+    }
+
+    // If work is incomplete, add new tasks and switch to execute phase
+    if (!review.isComplete && review.nextTasks && review.nextTasks.length > 0) {
+      console.log(`🔄 Review found improvements needed. Adding ${review.nextTasks.length} new tasks...`);
+      const updatedMemory = { 
+        ...aiMemory, 
+        currentPhase: "execute", 
+        plan: { ...aiMemory.plan, tasks: [...aiMemory.plan.tasks, ...review.nextTasks] }
+      };
+      
       return {
         phase: "review",
-        actions: postprocessResponse.actions,
-        message: postprocessResponse.message || "Improved text naturalness",
-        aiMemory: { ...aiMemory, currentPhase: "complete" },
-        confidence: "high",
-        plan: aiMemory.plan,
-        shouldContinue: false,
-        isComplete: true
+        actions: [],
+        message: review.message || "Needs improvement",
+        aiMemory: updatedMemory,
+        confidence: review.quality === "excellent" ? "high" : review.quality === "good" ? "medium" : "low",
+        plan: updatedMemory.plan,
+        shouldContinue: true,
+        isComplete: false
       };
     }
 
-    // No patterns found, document is complete
-    console.log("✅ Post-processing complete - no AI patterns detected!");
+    // Work is complete - move to post-processing phase
+    console.log("✅ Review complete - moving to post-processing for AI detection avoidance");
+    const updatedMemory = { ...aiMemory, currentPhase: "postprocess" };
+    
+    return await threePhaseGeneration({
+      ...request,
+      aiMemory: updatedMemory,
+      iterationCount: iterationCount + 1
+    });
+  }
+
+  // Phase 4: Post-processing for AI detection avoidance
+  if (aiMemory.currentPhase === "postprocess") {
+    console.log("🎨 Phase 4: Post-processing to enhance human-like qualities...");
+    
+    const postProcessPrompt = `You are a content humanizer. Review each section and make subtle improvements to avoid AI detection.
+
+SECTIONS:
+${sections.map(s => `## ${s.title}\n${s.content}`).join('\n\n')}
+
+Make these improvements:
+1. Vary sentence structure and length
+2. Add more natural transitions
+3. Include subtle imperfections (not errors, just human touches)
+4. Ensure varied vocabulary
+5. Make the writing feel more conversational where appropriate
+
+Return JSON with updated sections:
+{
+  "actions": [
+    {"type": "update", "sectionId": "section-id", "content": "improved content"}
+  ],
+  "message": "summary of changes"
+}
+
+Only include actions for sections that need changes. If content is already good, return empty actions.`;
+
+    const postProcessResult = await generateWithFallback({
+      messages: [
+        { role: "system", content: "You are a content enhancement specialist. You MUST respond with ONLY valid JSON, no markdown, no explanations, no code blocks. Just pure JSON." },
+        { role: "user", content: postProcessPrompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 4000,
+    });
+
+    let postProcessResponse;
+    try {
+      postProcessResponse = JSON.parse(postProcessResult.content);
+    } catch {
+      const jsonMatch = postProcessResult.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (jsonMatch) {
+        postProcessResponse = JSON.parse(jsonMatch[1]);
+      } else {
+        postProcessResponse = { actions: [], message: "No changes needed" };
+      }
+    }
+
+    // Mark as complete
+    const updatedMemory = { ...aiMemory, currentPhase: "complete" };
+
     return {
-      phase: "review",
-      actions: [],
-      message: "Document complete",
-      aiMemory: { ...aiMemory, currentPhase: "complete" },
+      phase: "postprocess",
+      actions: postProcessResponse.actions || [],
+      message: postProcessResponse.message || "Document finalized",
+      aiMemory: updatedMemory,
       confidence: "high",
-      plan: aiMemory.plan,
       shouldContinue: false,
       isComplete: true
     };
   }
 
-  // Phase 3: Review
-  console.log("🔍 Phase 3: Reviewing work...");
-  
-  const reviewPrompt = `You are a CRITICAL and THOROUGH reviewer of a ${aiMemory.plan.documentType}.
-
-GOAL: ${aiMemory.plan.overallGoal}
-
-CURRENT SECTIONS:
-${sections.map(s => `## ${s.title}\n${s.content || '(empty)'}`).join('\n\n')}
-
-REVIEW CRITERIA:
-- Is the content COMPREHENSIVE and DETAILED? (Minimum 150-300 words per section)
-- Are there any empty sections?
-- Does each section have substantial, meaningful content?
-- Is the document complete according to the plan?
-- Could any section be significantly improved or expanded?
-
-Be STRICT in your assessment. Only mark as complete if the document is truly comprehensive and well-developed.
-
-Review the document and respond with JSON:
-{
-  "quality": "excellent" | "good" | "needs_improvement",
-  "improvements": ["specific improvement 1", "specific improvement 2", ...],
-  "nextTasks": [
-    { "action": "update" | "create", "section": "section name", "description": "specific improvements needed", "done": false }
-  ],
-  "isComplete": true | false,
-  "message": "honest review summary"
-}`;
-
-  const reviewResult = await generateWithFallback({
-    messages: [
-      { role: "system", content: "You are a STRICT, critical reviewer. Set HIGH standards. Only approve truly excellent work. You MUST respond with ONLY valid JSON, no markdown, no explanations, no code blocks. Just pure JSON." },
-      { role: "user", content: reviewPrompt + "\n\nIMPORTANT: Return ONLY the JSON object, nothing else. No markdown code blocks, no explanations." }
-    ],
-    temperature: 0.5,
-    max_tokens: 1500,
-  });
-
-  let review;
-  try {
-    // Try to parse directly
-    review = JSON.parse(reviewResult.content);
-  } catch {
-    // Try to extract JSON from markdown code blocks
-    const jsonMatch = reviewResult.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-    if (jsonMatch) {
-      try {
-        review = JSON.parse(jsonMatch[1]);
-      } catch {
-        console.error("Failed to parse review JSON from markdown:", reviewResult.content);
-        review = { quality: "needs_improvement", improvements: [], nextTasks: [], isComplete: false, message: "Review failed, needs more work" };
-      }
-    } else {
-      console.error("Failed to parse review response:", reviewResult.content);
-      review = { quality: "needs_improvement", improvements: [], nextTasks: [], isComplete: false, message: "Review failed, needs more work" };
-    }
-  }
-
-  // If work is incomplete, add new tasks and switch to execute phase
-  if (!review.isComplete && review.nextTasks && review.nextTasks.length > 0) {
-    console.log(`🔄 Review found improvements needed. Adding ${review.nextTasks.length} new tasks...`);
-    const updatedMemory = { 
-      ...aiMemory, 
-      currentPhase: "execute", 
-      plan: { ...aiMemory.plan, tasks: [...aiMemory.plan.tasks, ...review.nextTasks] }
-    };
-    
-    return {
-      phase: "review",
-      actions: [],
-      message: review.message || "Needs improvement",
-      aiMemory: updatedMemory,
-      confidence: review.quality === "excellent" ? "high" : review.quality === "good" ? "medium" : "low",
-      plan: updatedMemory.plan,
-      shouldContinue: true,
-      isComplete: false
-    };
-  }
-
-  // Work is complete - move to post-processing phase
-  console.log("✅ Review complete - moving to post-processing for AI detection avoidance");
-  const updatedMemory = { ...aiMemory, currentPhase: "postprocess" };
-  
-  return await threePhaseGeneration({
-    ...request,
-    aiMemory: updatedMemory,
-    iterationCount: iterationCount + 1
-  });
+  // Fallback: Unknown phase
+  console.error("❌ Unknown phase:", aiMemory.currentPhase);
+  return {
+    phase: "review",
+    actions: [],
+    message: "Unknown phase - restarting",
+    aiMemory: { currentPhase: "execute" },
+    confidence: "low",
+    shouldContinue: false
+  };
 }

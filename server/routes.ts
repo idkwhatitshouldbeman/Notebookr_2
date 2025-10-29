@@ -172,7 +172,65 @@ export function registerRoutes(app: Express): Server {
     res.json(message);
   });
 
-  // AI Generation - Three-phase workflow with planning
+  // AI Generation - Streaming endpoint with SSE
+  app.post("/api/ai/generate/stream", isAuthenticated, async (req: any, res) => {
+    const schema = z.object({
+      instruction: z.string(),
+      notebookId: z.string(),
+      sections: z.array(z.object({
+        id: z.string(),
+        title: z.string(),
+        content: z.string(),
+      })),
+      aiMemory: z.any().optional(),
+    });
+
+    const result = schema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    const { instruction, notebookId, sections, aiMemory } = result.data;
+    const userId = req.user.id;
+
+    try {
+      // Get notebook to check ownership
+      const notebook = await storage.getNotebook(notebookId);
+      if (!notebook || notebook.userId !== userId) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      // Set up SSE headers
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders();
+
+      // Import streaming function
+      const { threePhaseGenerationStream } = await import("./ai-service");
+
+      // Start streaming generation
+      for await (const event of threePhaseGenerationStream({
+        instruction,
+        sections,
+        aiMemory: aiMemory || notebook.aiMemory,
+        notebookId
+      })) {
+        // Send event to client
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      }
+
+      // Close the stream
+      res.write('data: {"type":"close"}\n\n');
+      res.end();
+    } catch (error) {
+      console.error("❌ AI streaming error:", error);
+      res.write(`data: ${JSON.stringify({ type: "error", error: "Failed to generate content" })}\n\n`);
+      res.end();
+    }
+  });
+
+  // AI Generation - Three-phase workflow with planning (non-streaming for backward compatibility)
   app.post("/api/ai/generate", isAuthenticated, async (req: any, res) => {
     const schema = z.object({
       instruction: z.string(),

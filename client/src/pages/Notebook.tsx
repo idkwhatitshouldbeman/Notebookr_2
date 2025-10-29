@@ -193,6 +193,80 @@ export default function Notebook() {
     },
   });
 
+  // Streaming AI generation - prevents 504 timeouts by keeping connection alive
+  const generateAIStreaming = async (
+    data: { 
+      instruction: string; 
+      notebookId: string; 
+      sections: Array<{ id: string; title: string; content: string }>;
+      aiMemory?: any;
+    }
+  ): Promise<any> => {
+    const response = await fetch("/api/ai/generate/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    
+    if (!reader) {
+      throw new Error("No response body");
+    }
+
+    let result: any = null;
+    let buffer = ''; // Buffer for incomplete SSE messages
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      
+      if (done) break;
+      
+      // Add to buffer and process complete lines
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      
+      // Keep last incomplete line in buffer
+      buffer = lines.pop() || '';
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6).trim();
+          
+          if (!data) continue; // Skip empty data
+          
+          try {
+            const event = JSON.parse(data);
+            
+            if (event.type === 'content_chunk') {
+              // Could show real-time updates here in the future
+              console.log('Chunk:', event.content);
+            } else if (event.type === 'progress') {
+              console.log('Progress:', event.message);
+            } else if (event.type === 'complete') {
+              result = event.result;
+            } else if (event.type === 'error') {
+              throw new Error(event.error);
+            } else if (event.type === 'close') {
+              return result;
+            }
+          } catch (e) {
+            // Skip invalid JSON
+            console.warn('Failed to parse SSE event:', data, e);
+          }
+        }
+      }
+    }
+    
+    return result;
+  };
+
+  // Non-streaming fallback (for now we'll use this)
   const generateAI = useMutation({
     mutationFn: async (data: { 
       instruction: string; 
@@ -305,7 +379,8 @@ export default function Notebook() {
         
         // Track timing for this API call
         const apiStartTime = Date.now();
-        const result = await generateAI.mutateAsync({ 
+        // Use streaming to prevent 504 timeouts
+        const result = await generateAIStreaming({ 
           instruction: iterationCount === 1 ? instruction : "", // Send instruction on first iteration only
           notebookId: id!, 
           sections: currentSections,
