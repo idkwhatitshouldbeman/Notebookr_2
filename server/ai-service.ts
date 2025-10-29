@@ -393,8 +393,8 @@ If hasQuestions is false, questions must be empty array [] and you MUST populate
 
     const planResult = await generateWithFallback({
       messages: [
-        { role: "system", content: "You are a document planning expert. You MUST respond with ONLY valid JSON, no markdown, no explanations, no code blocks. Just pure JSON." },
-        { role: "user", content: planningPrompt + "\n\nIMPORTANT: Return ONLY the JSON object, nothing else. No markdown code blocks, no explanations." }
+        { role: "system", content: "You are a JSON API. You ONLY output valid JSON. Never use markdown. Never add explanations. Never use code blocks. Your entire response must be parseable by JSON.parse()." },
+        { role: "user", content: planningPrompt + "\n\nCRITICAL: Your response must be ONLY the JSON object. Do NOT wrap it in ```json``` code blocks. Start with { and end with }" }
       ],
       temperature: 0.5,
       max_tokens: 1500,
@@ -565,8 +565,8 @@ CRITICAL: Use DESCRIPTIVE section names, not "Introduction", "Body", "Conclusion
 
     const finalPlanResult = await generateWithFallback({
       messages: [
-        { role: "system", content: "You are a document planning expert. You MUST respond with ONLY valid JSON, no markdown, no explanations, no code blocks. Just pure JSON." },
-        { role: "user", content: finalPlanPrompt }
+        { role: "system", content: "You are a JSON API. You ONLY output valid JSON. Never use markdown. Never add explanations. Never use code blocks. Your entire response must be parseable by JSON.parse()." },
+        { role: "user", content: finalPlanPrompt + "\n\nCRITICAL: Your response must be ONLY the JSON object. Do NOT wrap it in ```json``` code blocks. Start with { and end with }" }
       ],
       temperature: 0.5,
       max_tokens: 1500,
@@ -717,8 +717,8 @@ Respond with JSON:
 
     const execResult = await generateWithFallback({
       messages: [
-        { role: "system", content: "You are a technical writing assistant. Be detailed, comprehensive, and precise. Write LONG, thorough content. You MUST respond with ONLY valid JSON, no markdown, no explanations, no code blocks. Just pure JSON." },
-        { role: "user", content: executionPrompt + "\n\nCRITICAL: Return ONLY the JSON object with your actions, nothing else. No markdown code blocks, no explanations." }
+        { role: "system", content: "You are a JSON API. You ONLY output valid JSON. Never use markdown. Never add explanations. Never use code blocks. Your entire response must be parseable by JSON.parse()." },
+        { role: "user", content: executionPrompt + "\n\nCRITICAL FORMAT REQUIREMENT:\nYour response must be ONLY the JSON object shown above.\nDo NOT wrap it in ```json``` or ``` code blocks.\nDo NOT add any text before or after the JSON.\nYour ENTIRE response must be valid JSON that can be parsed directly.\n\nStart your response with { and end with }" }
       ],
       temperature: 0.7,
       max_tokens: 3000,
@@ -732,10 +732,10 @@ Respond with JSON:
       parseSuccess = true;
       console.log("✅ Successfully parsed execution JSON directly");
     } catch (parseError) {
-      console.error("❌ JSON Parse Error - Direct parse failed");
-      console.error("Raw AI response length:", execResult.content.length);
-      console.error("First 1000 chars:", execResult.content.substring(0, 1000));
-      console.error("Last 500 chars:", execResult.content.substring(Math.max(0, execResult.content.length - 500)));
+      console.log("❌ JSON Parse Error - Direct parse failed");
+      console.log("Raw AI response length:", execResult.content.length);
+      console.log("First 1000 chars:", execResult.content.substring(0, 1000));
+      console.log("Last 500 chars:", execResult.content.substring(Math.max(0, execResult.content.length - 500)));
       
       // Try to extract JSON from markdown code blocks
       const jsonMatch = execResult.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
@@ -745,18 +745,19 @@ Respond with JSON:
           parseSuccess = true;
           console.log("✅ Successfully extracted JSON from markdown code block");
         } catch (markdownError) {
-          console.error("❌ Failed to parse JSON from markdown block");
-          console.error("Markdown JSON content:", jsonMatch[1].substring(0, 1000));
+          console.log("❌ Failed to parse JSON from markdown block");
+          console.log("Markdown JSON content:", jsonMatch[1].substring(0, 1000));
         }
       }
       
       // If all parsing failed, return error without marking task as done
       if (!parseSuccess) {
-        console.error("❌ All JSON parsing attempts failed - will retry on next iteration");
+        console.log("❌ All JSON parsing attempts failed - will retry on next iteration");
+        console.log("🔍 DEBUG: Full AI response:", execResult.content);
         return {
           phase: "execute",
           actions: [],
-          message: `Failed to parse AI response for "${nextTask.section}". Will retry. Error snippet: ${execResult.content.substring(0, 200)}...`,
+          message: `AI returned invalid format. Please try again or rephrase your request.`,
           aiMemory: aiMemory, // Don't update - keep task as not done
           confidence: "low",
           plan: aiMemory.plan,
