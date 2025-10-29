@@ -398,7 +398,7 @@ export default function Notebook() {
         let timingDescription = "";
         
         // Check if we have a progress message that tells us what section was written
-        if (result.progressMessage && result.progressMessage.includes("Writing")) {
+        if (result && result.progressMessage && result.progressMessage.includes("Writing")) {
           // Extract section name from progress message like "Writing Introduction... (1/8 completed)"
           const sectionMatch = result.progressMessage.match(/Writing (.+?)\.\.\./);
           if (sectionMatch) {
@@ -406,7 +406,7 @@ export default function Notebook() {
           }
         } 
         // Check what actions were performed - look up readable section name
-        if (!timingDescription && result.actions && result.actions.length > 0) {
+        if (!timingDescription && result && result.actions && result.actions.length > 0) {
           const action = result.actions[0];
           let sectionName = "";
           
@@ -427,7 +427,7 @@ export default function Notebook() {
           }
         }
         // Check phase transitions
-        if (!timingDescription) {
+        if (!timingDescription && result) {
           if (previousPhase === null && result.phase === "plan") {
             timingDescription = "Completed planning";
           } else if (previousPhase === "execute" && result.phase === "review") {
@@ -461,22 +461,24 @@ export default function Notebook() {
         }
         
         // Update phase and plan
-        setAiPhase(result.phase || null);
-        if (result.plan) {
-          setCurrentPlan(result.plan);
-        }
-        
-        // Update phase without showing messages
-        // (Phase indicator is shown in the UI status bar instead)
-        
-        // Auto-generate title if it's still "Untitled Notebook" and AI suggested a title
-        if (notebook?.title === "Untitled Notebook" && result.suggestedTitle) {
-          setTitle(result.suggestedTitle);
-          updateTitle.mutate(result.suggestedTitle);
+        if (result) {
+          setAiPhase(result.phase || null);
+          if (result.plan) {
+            setCurrentPlan(result.plan);
+          }
+          
+          // Update phase without showing messages
+          // (Phase indicator is shown in the UI status bar instead)
+          
+          // Auto-generate title if it's still "Untitled Notebook" and AI suggested a title
+          if (notebook?.title === "Untitled Notebook" && result.suggestedTitle) {
+            setTitle(result.suggestedTitle);
+            updateTitle.mutate(result.suggestedTitle);
+          }
         }
 
         // Apply AI actions automatically (Cursor-style)
-        if (result.actions && Array.isArray(result.actions)) {
+        if (result && result.actions && Array.isArray(result.actions)) {
           let createCount = 0;
           for (const action of result.actions) {
             // Validate action has required fields
@@ -596,37 +598,43 @@ export default function Notebook() {
         }
         
         // Check if work is complete
-        isComplete = result.isComplete || false;
-        aiMemory = result.aiMemory;
-        
-        // Break conditions
-        if (isComplete) {
-          console.log("AI reports work is complete");
+        if (result) {
+          isComplete = result.isComplete || false;
+          aiMemory = result.aiMemory;
+          
+          // Break conditions
+          if (isComplete) {
+            console.log("AI reports work is complete");
+            break;
+          }
+          
+          if (!result.shouldContinue) {
+            console.warn("AI paused (may have questions or need user input)");
+            // Persist AI memory so user's answer can resume the flow
+            setPersistedAiMemory(result.aiMemory || aiMemory);
+            // Use the AI's actual message (may contain questions)
+            const pauseMessage: Message = {
+              id: (Date.now() + 1).toString(),
+              role: "assistant",
+              content: result.message || "I need more information. Please provide additional details.",
+            };
+            setMessages(prev => [...prev, pauseMessage]);
+            
+            // Save pause message to database
+            saveMessage.mutate({
+              notebookId: id!,
+              role: "assistant",
+              content: result.message || "I need more information. Please provide additional details."
+            });
+            
+            setAiPhase(null);
+            setProcessingStartTime(null); // Stop tracking time
+            return; // Exit early, don't add another message
+          }
+        } else {
+          // If result is null (error case), break the loop
+          console.error("❌ Received null result from AI, stopping generation");
           break;
-        }
-        
-        if (!result.shouldContinue) {
-          console.warn("AI paused (may have questions or need user input)");
-          // Persist AI memory so user's answer can resume the flow
-          setPersistedAiMemory(result.aiMemory || aiMemory);
-          // Use the AI's actual message (may contain questions)
-          const pauseMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            role: "assistant",
-            content: result.message || "I need more information. Please provide additional details.",
-          };
-          setMessages(prev => [...prev, pauseMessage]);
-          
-          // Save pause message to database
-          saveMessage.mutate({
-            notebookId: id!,
-            role: "assistant",
-            content: result.message || "I need more information. Please provide additional details."
-          });
-          
-          setAiPhase(null);
-          setProcessingStartTime(null); // Stop tracking time
-          return; // Exit early, don't add another message
         }
         
         // Continue looping

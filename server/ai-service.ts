@@ -661,7 +661,8 @@ CRITICAL: Use DESCRIPTIVE section names, not "Introduction", "Body", "Conclusion
     // Calculate target word count per section
     let targetWordsPerSection = 250; // Default
     if (vars.targetLength) {
-      const lengthMatch = vars.targetLength.match(/(\d+)\s*(page|pages)/i);
+      const lengthStr = String(vars.targetLength); // Ensure it's a string
+      const lengthMatch = lengthStr.match(/(\d+)\s*(page|pages)/i);
       if (lengthMatch) {
         const totalPages = parseInt(lengthMatch[1]);
         const totalWords = totalPages * 250; // 250 words per page
