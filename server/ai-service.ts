@@ -368,9 +368,9 @@ WHEN TO PROCEED (hasQuestions = false):
 Return JSON:
 {
   "variables": {
-    "topic": "main subject",
-    "targetLength": "5 pages OR 3 sections OR null if not specified",
-    "documentType": "research paper OR guide OR null",
+    "topic": "main subject (extract the actual topic, not a number)",
+    "targetLength": "ONLY extract if user specifies: '5 pages', '10 pages', '3000 words', etc. Otherwise null. DO NOT use '500' or any default number.",
+    "documentType": "research paper OR guide OR essay OR null",
     "focusAreas": ["specific topics OR empty"],
     "targetAudience": "who this is for OR null",
     "originalInstruction": "${instruction}",
@@ -549,10 +549,10 @@ ${answersText}
 Generate a complete plan with meaningful section names and tasks. Return JSON:
 {
   "variables": {
-    "topic": "main subject",
-    "targetLength": "extracted from answers",
-    "documentType": "extracted from answers",
-    "targetAudience": "extracted from answers",
+    "topic": "main subject (extract actual topic, not a number)",
+    "targetLength": "ONLY if user specified pages/words (e.g., '5 pages', '2000 words'), otherwise null. DO NOT invent a number.",
+    "documentType": "extracted from answers (e.g., essay, research paper, guide)",
+    "targetAudience": "extracted from answers or null",
     "tone": "extracted from answers OR professional",
     "originalInstruction": "${instruction}"
   },
@@ -725,13 +725,16 @@ Respond with JSON:
     });
 
     let execResponse;
+    let parseSuccess = false;
     try {
       // Try to parse directly
       execResponse = JSON.parse(execResult.content);
+      parseSuccess = true;
+      console.log("✅ Successfully parsed execution JSON directly");
     } catch (parseError) {
       console.error("❌ JSON Parse Error - Direct parse failed");
       console.error("Raw AI response length:", execResult.content.length);
-      console.error("First 500 chars:", execResult.content.substring(0, 500));
+      console.error("First 1000 chars:", execResult.content.substring(0, 1000));
       console.error("Last 500 chars:", execResult.content.substring(Math.max(0, execResult.content.length - 500)));
       
       // Try to extract JSON from markdown code blocks
@@ -739,20 +742,32 @@ Respond with JSON:
       if (jsonMatch) {
         try {
           execResponse = JSON.parse(jsonMatch[1]);
+          parseSuccess = true;
           console.log("✅ Successfully extracted JSON from markdown code block");
         } catch (markdownError) {
-          console.error("❌ Failed to parse JSON from markdown:", jsonMatch[1].substring(0, 500));
-          execResponse = { actions: [], message: "AI response was not valid JSON" };
+          console.error("❌ Failed to parse JSON from markdown block");
+          console.error("Markdown JSON content:", jsonMatch[1].substring(0, 1000));
         }
-      } else {
-        console.error("❌ No JSON code block found in response");
-        execResponse = { actions: [], message: "AI response was not valid JSON" };
+      }
+      
+      // If all parsing failed, return error without marking task as done
+      if (!parseSuccess) {
+        console.error("❌ All JSON parsing attempts failed - will retry on next iteration");
+        return {
+          phase: "execute",
+          actions: [],
+          message: `Failed to parse AI response for "${nextTask.section}". Will retry. Error snippet: ${execResult.content.substring(0, 200)}...`,
+          aiMemory: aiMemory, // Don't update - keep task as not done
+          confidence: "low",
+          plan: aiMemory.plan,
+          shouldContinue: false // Stop and let user see the error
+        };
       }
     }
 
-    // Mark task as done
+    // Only mark task as done if we successfully parsed the response
     const updatedTasks = plan.tasks.map((t: any) =>
-      t === nextTask ? { ...t, done: true } : t
+      t === nextTask ? { ...t, done: parseSuccess } : t
     );
 
     const updatedMemory = {
