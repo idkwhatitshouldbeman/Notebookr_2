@@ -51,6 +51,59 @@ type StreamChunk = {
   error: string;
 };
 
+/**
+ * Fix literal newlines in JSON strings by walking character-by-character
+ * and properly handling escape sequences. This handles cases where AI
+ * returns JSON with actual newlines instead of \n escape sequences.
+ */
+function fixJsonNewlines(jsonStr: string): string {
+  const result: string[] = [];
+  let inString = false;
+  let escaped = false;
+  
+  for (let i = 0; i < jsonStr.length; i++) {
+    const char = jsonStr[i];
+    
+    // Track if we're inside a string
+    if (char === '"' && !escaped) {
+      inString = !inString;
+      result.push(char);
+      escaped = false;
+      continue;
+    }
+    
+    // If we see a backslash, next char is escaped
+    if (char === '\\' && inString && !escaped) {
+      escaped = true;
+      result.push(char);
+      continue;
+    }
+    
+    // If we're in a string and see a literal newline, escape it
+    if (inString && !escaped) {
+      if (char === '\n') {
+        result.push('\\n');
+        escaped = false;
+        continue;
+      } else if (char === '\r') {
+        // Skip \r (will be handled as part of \r\n or ignored)
+        const nextChar = i + 1 < jsonStr.length ? jsonStr[i + 1] : '';
+        if (nextChar !== '\n') {
+          result.push('\\r');
+        }
+        escaped = false;
+        continue;
+      }
+    }
+    
+    // Regular character
+    result.push(char);
+    escaped = false;
+  }
+  
+  return result.join('');
+}
+
 // Streaming version of AI generation
 export async function* generateWithFallbackStream(
   request: AIRequest
@@ -703,17 +756,19 @@ IMPORTANT GUIDELINES:
 - Each paragraph should be 50-100 words (substantial, not short)
 - Think like a book: each chapter has multiple paragraphs covering different aspects in depth
 
-Respond with JSON:
+Respond with JSON (ESCAPE all newlines as \\n in the content field):
 {
   "actions": [
     {
       "type": "update" | "create",
       "sectionId": "section-id-or-new-title",
-      "content": "Paragraph 1 with details.\n\nParagraph 2 expanding on the topic.\n\nParagraph 3 with examples."
+      "content": "Paragraph 1 with details.\\n\\nParagraph 2 expanding on the topic.\\n\\nParagraph 3 with examples."
     }
   ],
   "message": "what you did"
-}`;
+}
+
+CRITICAL: In the "content" field, use \\n for newlines, NOT actual line breaks.`;
 
     const execResult = await generateWithFallback({
       messages: [
@@ -726,6 +781,9 @@ Respond with JSON:
 
     let execResponse;
     let parseSuccess = false;
+    
+    console.log("🔍 RAW AI RESPONSE:", execResult.content);
+    
     try {
       // Try to parse directly
       execResponse = JSON.parse(execResult.content);
@@ -733,27 +791,38 @@ Respond with JSON:
       console.log("✅ Successfully parsed execution JSON directly");
     } catch (parseError) {
       console.log("❌ JSON Parse Error - Direct parse failed");
-      console.log("Raw AI response length:", execResult.content.length);
-      console.log("First 1000 chars:", execResult.content.substring(0, 1000));
-      console.log("Last 500 chars:", execResult.content.substring(Math.max(0, execResult.content.length - 500)));
+      console.log("Error:", parseError);
       
-      // Try to extract JSON from markdown code blocks
-      const jsonMatch = execResult.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-      if (jsonMatch) {
-        try {
-          execResponse = JSON.parse(jsonMatch[1]);
-          parseSuccess = true;
-          console.log("✅ Successfully extracted JSON from markdown code block");
-        } catch (markdownError) {
-          console.log("❌ Failed to parse JSON from markdown block");
-          console.log("Markdown JSON content:", jsonMatch[1].substring(0, 1000));
+      // Try to fix common issues: literal newlines in strings
+      try {
+        console.log("🔧 Attempting to fix literal newlines in JSON strings...");
+        
+        // Properly fix newlines in JSON strings by walking character-by-character
+        const fixedContent = fixJsonNewlines(execResult.content);
+        
+        execResponse = JSON.parse(fixedContent);
+        parseSuccess = true;
+        console.log("✅ Successfully parsed after fixing literal newlines");
+      } catch (fixError) {
+        console.log("❌ Failed to parse even after fixing newlines");
+        console.log("Fix error:", fixError);
+        
+        // Try to extract JSON from markdown code blocks
+        const jsonMatch = execResult.content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+        if (jsonMatch) {
+          try {
+            execResponse = JSON.parse(jsonMatch[1]);
+            parseSuccess = true;
+            console.log("✅ Successfully extracted JSON from markdown code block");
+          } catch (markdownError) {
+            console.log("❌ Failed to parse JSON from markdown block");
+          }
         }
       }
       
       // If all parsing failed, return error without marking task as done
       if (!parseSuccess) {
         console.log("❌ All JSON parsing attempts failed - will retry on next iteration");
-        console.log("🔍 DEBUG: Full AI response:", execResult.content);
         return {
           phase: "execute",
           actions: [],
