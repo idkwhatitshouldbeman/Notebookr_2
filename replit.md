@@ -7,7 +7,9 @@ Notebookr is a free, AI-powered engineering notebook application designed to hel
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (October 29, 2025)
-- **Real-Time AI Streaming:** Implemented Server-Sent Events (SSE) for streaming AI responses. Prevents 504 Gateway Timeout errors by keeping connection alive during long AI generations. Frontend can watch content being written in real-time (word-by-word streaming during execution phase). Backward-compatible non-streaming endpoint maintained for fallback.
+- **Real-Time AI Streaming with Heartbeats:** Implemented Server-Sent Events (SSE) for streaming AI responses. Prevents 504 Gateway Timeout errors by emitting heartbeat events every 5 seconds during long AI operations. Backend uses `threePhaseGenerationStream` generator that yields progress updates while waiting for AI completion. Frontend uses `generateAIStreaming` with buffered SSE parsing to handle incomplete messages. Backward-compatible non-streaming endpoint maintained for fallback.
+- **Streaming Bug Fixes:** Fixed TypeError when `vars.targetLength` is a number (now converted to string before regex matching). Added comprehensive null checks on frontend before accessing `result` properties to prevent "Cannot read properties of null" crashes when SSE emits error events.
+- **SSE Event Types:** Supports phase_update, progress (heartbeats), action, content_chunk, complete, and error event types for comprehensive streaming feedback.
 
 ## Previous Changes (October 28, 2025)
 - **Cleaner Status Messages:** Removed all emojis from completion messages. Format now consistently shows "Completed X in Y time", "Reviewed content in Y time", "Revised content in Y time". Always displays specific section names instead of generic "Completed" messages.
