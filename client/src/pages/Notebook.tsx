@@ -27,7 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Send, Sparkles, FileText, User, Bot, Loader2, Maximize2, Minimize2, MoreVertical, Trash2, Edit2 } from "lucide-react";
+import { Send, Sparkles, FileText, User, Bot, Loader2, Maximize2, Minimize2, MoreVertical, Trash2, Edit2, ChevronDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { queryClient } from "@/lib/queryClient";
 import type { Notebook as NotebookType, Section } from "@shared/schema";
@@ -37,10 +37,56 @@ interface Message {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
+  messageType?: "status" | "completion"; // status=yellow collapsible, completion=green visible
   sectionTitle?: string;
   sectionContent?: string; // Actual section content for expandable messages
   isExpandable?: boolean;
   expanded?: boolean;
+}
+
+interface MessageGroup {
+  type: "activity" | "message";
+  messages: Message[];
+  expanded?: boolean;
+}
+
+// Group consecutive status messages into activity logs
+function groupMessages(messages: Message[]): MessageGroup[] {
+  const groups: MessageGroup[] = [];
+  let currentActivityGroup: Message[] = [];
+
+  for (const message of messages) {
+    if (message.messageType === "status") {
+      // Add to current activity group
+      currentActivityGroup.push(message);
+    } else {
+      // If we have accumulated status messages, create an activity group
+      if (currentActivityGroup.length > 0) {
+        groups.push({
+          type: "activity",
+          messages: [...currentActivityGroup],
+          expanded: false
+        });
+        currentActivityGroup = [];
+      }
+      // Add regular message
+      groups.push({
+        type: "message",
+        messages: [message]
+      });
+    }
+  }
+
+  // Don't forget final activity group
+  if (currentActivityGroup.length > 0) {
+    groups.push({
+      type: "activity",
+      messages: [...currentActivityGroup],
+      expanded: false
+    });
+  }
+
+  return groups;
 }
 
 export default function Notebook() {
@@ -65,6 +111,7 @@ export default function Notebook() {
   const [processingStartTime, setProcessingStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isContextOpen, setIsContextOpen] = useState("context");
+  const [expandedActivityLogs, setExpandedActivityLogs] = useState<Set<number>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
