@@ -6,8 +6,15 @@ Notebookr is a free, AI-powered engineering notebook application designed to hel
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (October 29, 2025)
-- **Real-Time AI Streaming with Heartbeats:** Implemented Server-Sent Events (SSE) for streaming AI responses. Prevents 504 Gateway Timeout errors by emitting heartbeat events every 5 seconds during long AI operations. Backend uses `threePhaseGenerationStream` generator that yields progress updates while waiting for AI completion. Frontend uses `generateAIStreaming` with buffered SSE parsing to handle incomplete messages. Backward-compatible non-streaming endpoint maintained for fallback.
+## Recent Changes (October 30, 2025)
+- **Autonomous AI Planning:** Completely revamped planning to be more autonomous and intelligent. AI now extracts all explicit details from requests, makes reasonable decisions about structure, and only asks questions when critical information is genuinely missing. Eliminates repetitive "who will be reading this?" questions.
+- **Better Planning Questions:** Replaced generic audience questions with useful task-focused questions like "Should this be academic/formal or casual/conversational?", "Are you looking for a how-to guide or an analytical essay?", "Do you want this focused on theory or practical examples?"
+- **Enhanced Context Display:** Context panel now shows Topic, Length, Type, and Tone up front with a segregated "Notes" section for less common modifiers (Audience, Focus Areas, Comments). Makes it easy to see essential context at a glance.
+- **JSON Parsing Fixes:** Fixed AI returning literal newlines in JSON content fields. Implemented character-by-character parser (`fixJsonNewlines`) that properly handles escape sequences, respects escaped quotes, and converts literal newlines to `\n` escape sequences. Prevents "AI response was not valid JSON" errors.
+- **Improved Error Logging:** Added comprehensive debugging with full raw AI response logging. Helps diagnose JSON parsing issues and AI behavior. Changed console.error to console.log so errors appear in Express workflow logs.
+
+## Previous Changes (October 29, 2025)
+- **Real-Time AI Streaming with Heartbeats:** Implemented Server-Sent Events (SSE) for streaming AI responses. Prevents 504 Gateway Timeout errors by emitting heartbeat events every 5 seconds during long AI operations. Backend uses `threePhaseGenerationStream` generator that yields progress updates while waiting for AI completion. Frontend uses `generateAIStreaming` with buffered SSE parsing to handle incomplete messages. Backward-compatible non-streaming endpoint maintained for fallback. Note: SSE streaming is for heartbeats/timeout prevention, not word-by-word content streaming.
 - **Streaming Bug Fixes:** Fixed TypeError when `vars.targetLength` is a number (now converted to string before regex matching). Added comprehensive null checks on frontend before accessing `result` properties to prevent "Cannot read properties of null" crashes when SSE emits error events.
 - **SSE Event Types:** Supports phase_update, progress (heartbeats), action, content_chunk, complete, and error event types for comprehensive streaming feedback.
 
