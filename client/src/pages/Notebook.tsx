@@ -845,20 +845,19 @@ export default function Notebook() {
             // Persist AI memory so user's answer can resume the flow
             setPersistedAiMemory(result.aiMemory || aiMemory);
             // Use the AI's actual message (may contain questions)
+            // NOTE: No messageType = regular assistant message (appears outside activity log)
             const pauseMessage: Message = {
               id: (Date.now() + 1).toString(),
               role: "assistant",
-              content: result.message || "I need more information. Please provide additional details.",
-              messageType: "status"
+              content: result.message || "I need more information. Please provide additional details."
             };
             setMessages(prev => [...prev, pauseMessage]);
             
-            // Save pause message to database
+            // Save pause message to database (no messageType = regular message)
             saveMessage.mutate({
               notebookId: id!,
               role: "assistant",
-              content: result.message || "I need more information. Please provide additional details.",
-              messageType: "status"
+              content: result.message || "I need more information. Please provide additional details."
             });
             
             setAiPhase(null);
