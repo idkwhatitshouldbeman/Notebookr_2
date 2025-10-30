@@ -50,13 +50,52 @@ interface MessageGroup {
   expanded?: boolean;
 }
 
+// Helper function to infer message type from content (for backward compatibility)
+function inferMessageType(message: Message): "status" | "completion" | "regular" {
+  // If messageType is explicitly set, use it
+  if (message.messageType) {
+    return message.messageType;
+  }
+  
+  // For backward compatibility, infer from content
+  const content = message.content.toLowerCase();
+  
+  // Completion patterns
+  if (
+    content.includes("finished making:") ||
+    content.includes("section created") ||
+    (content.includes("is done") && message.role === "system") ||
+    message.isExpandable
+  ) {
+    return "completion";
+  }
+  
+  // Status patterns (timing, planning, progress messages)
+  if (
+    content.includes(" in ") && content.includes("s") && (
+      content.includes("completed") ||
+      content.includes("reviewed") ||
+      content.includes("revised") ||
+      content.includes("writing") ||
+      content.includes("planned")
+    )
+  ) {
+    return "status";
+  }
+  
+  // Default to regular message
+  return "regular";
+}
+
 // Group consecutive status messages into activity logs
 function groupMessages(messages: Message[]): MessageGroup[] {
   const groups: MessageGroup[] = [];
   let currentActivityGroup: Message[] = [];
 
   for (const message of messages) {
-    if (message.messageType === "status") {
+    const messageType = inferMessageType(message);
+    
+    if (messageType === "status") {
       // Add to current activity group
       currentActivityGroup.push(message);
     } else {
@@ -358,7 +397,14 @@ export default function Notebook() {
   });
 
   const saveMessage = useMutation({
-    mutationFn: async (data: { notebookId: string; role: "user" | "assistant"; content: string }) => {
+    mutationFn: async (data: { 
+      notebookId: string; 
+      role: "user" | "assistant"; 
+      content: string;
+      messageType?: "status" | "completion";
+      sectionTitle?: string;
+      isExpandable?: string;
+    }) => {
       const response = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -506,7 +552,7 @@ export default function Notebook() {
             role: "assistant",
             content: `${timingDescription} in ${apiDuration}s`,
             messageType: "status"
-          } as any);
+          });
         }
         
         // Update phase and plan
@@ -567,12 +613,12 @@ export default function Notebook() {
                   // Save completion message to database (use assistant role for compatibility)
                   saveMessage.mutate({
                     notebookId: id!,
-                    role: "assistant" as any,
+                    role: "assistant",
                     content: `Finished making: ${targetSection.title}`,
                     sectionTitle: targetSection.title,
                     isExpandable: "true",
                     messageType: "completion"
-                  } as any);
+                  });
                   
                   // Clear the highlight after 2 seconds
                   setTimeout(() => {
@@ -622,12 +668,12 @@ export default function Notebook() {
                 // Save completion message to database (use assistant role for compatibility)
                 saveMessage.mutate({
                   notebookId: id!,
-                  role: "assistant" as any,
+                  role: "assistant",
                   content: `Finished making: ${action.sectionId}`,
                   sectionTitle: action.sectionId,
                   isExpandable: "true",
                   messageType: "completion"
-                } as any);
+                });
                 
                 // Highlight new section
                 if (newSection?.id) {
@@ -680,7 +726,7 @@ export default function Notebook() {
               role: "assistant",
               content: result.message || "I need more information. Please provide additional details.",
               messageType: "status"
-            } as any);
+            });
             
             setAiPhase(null);
             setProcessingStartTime(null); // Stop tracking time
@@ -720,7 +766,7 @@ export default function Notebook() {
         role: "assistant",
         content: completionMessage,
         messageType: "status"
-      } as any);
+      });
     } catch (error: any) {
       console.error("❌ AI error:", error);
       setAiPhase(null);
@@ -765,7 +811,7 @@ export default function Notebook() {
         role: "assistant",
         content: errorText,
         messageType: "status"
-      } as any);
+      });
     }
   };
 
@@ -890,7 +936,7 @@ export default function Notebook() {
               const message = group.messages[0];
 
               // Completion messages (green, always visible)
-              if (message.messageType === "completion") {
+              if (inferMessageType(message) === "completion") {
                 return (
                   <div key={message.id} className="flex gap-3">
                     <Avatar className="h-8 w-8">
