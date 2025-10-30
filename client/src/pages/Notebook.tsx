@@ -495,7 +495,8 @@ export default function Notebook() {
           const timingMessage: Message = {
             id: `timing-${Date.now()}`,
             role: "assistant",
-            content: `${timingDescription} in ${apiDuration}s`
+            content: `${timingDescription} in ${apiDuration}s`,
+            messageType: "status"
           };
           setMessages(prev => [...prev, timingMessage]);
           
@@ -555,6 +556,7 @@ export default function Notebook() {
                     id: `completion-${Date.now()}-${targetSection.id}`,
                     role: "system",
                     content: `Finished making: ${targetSection.title}`,
+                    messageType: "completion",
                     sectionTitle: targetSection.title,
                     sectionContent: action.content, // Store content separately for expansion
                     isExpandable: true,
@@ -609,6 +611,7 @@ export default function Notebook() {
                   id: `completion-${Date.now()}-${newSection.id}`,
                   role: "system",
                   content: `Finished making: ${action.sectionId}`,
+                  messageType: "completion",
                   sectionTitle: action.sectionId,
                   sectionContent: action.content, // Store content separately for expansion
                   isExpandable: true,
@@ -667,6 +670,7 @@ export default function Notebook() {
               id: (Date.now() + 1).toString(),
               role: "assistant",
               content: result.message || "I need more information. Please provide additional details.",
+              messageType: "status"
             };
             setMessages(prev => [...prev, pauseMessage]);
             
@@ -706,6 +710,7 @@ export default function Notebook() {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content: completionMessage,
+        messageType: "status"
       };
       setMessages(prev => [...prev, aiMessage]);
       
@@ -749,7 +754,8 @@ export default function Notebook() {
       const errorMessage: Message = {
         id: (Date.now() + 2).toString(),
         role: "assistant",
-        content: errorText
+        content: errorText,
+        messageType: "status"
       };
       setMessages(prev => [...prev, errorMessage]);
       
@@ -836,7 +842,90 @@ export default function Notebook() {
                 </div>
               </div>
             )}
-            {messages.map((message) => {
+            {groupMessages(messages).map((group, groupIndex) => {
+              if (group.type === "activity") {
+                const isExpanded = expandedActivityLogs.has(groupIndex);
+                return (
+                  <Card
+                    key={`activity-${groupIndex}`}
+                    className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900/30 cursor-pointer hover-elevate"
+                    onClick={() => {
+                      setExpandedActivityLogs(prev => {
+                        const next = new Set(prev);
+                        if (next.has(groupIndex)) {
+                          next.delete(groupIndex);
+                        } else {
+                          next.add(groupIndex);
+                        }
+                        return next;
+                      });
+                    }}
+                    data-testid={`activity-log-${groupIndex}`}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium text-yellow-700 dark:text-yellow-400">
+                      {isExpanded ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                      <span>Activity log</span>
+                      <Badge variant="secondary" className="ml-auto text-xs">
+                        {group.messages.length} {group.messages.length === 1 ? 'message' : 'messages'}
+                      </Badge>
+                    </div>
+                    {isExpanded && (
+                      <div className="mt-3 space-y-2 pl-6">
+                        {group.messages.map((message) => (
+                          <div key={message.id} className="text-xs text-yellow-800 dark:text-yellow-300 leading-relaxed">
+                            {message.content}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+                );
+              }
+
+              // Single message group
+              const message = group.messages[0];
+
+              // Completion messages (green, always visible)
+              if (message.messageType === "completion") {
+                return (
+                  <div key={message.id} className="flex gap-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-green-600 text-white">
+                        <Sparkles className="h-4 w-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <Card 
+                      className="p-3 max-w-[80%] bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900/30 cursor-pointer hover-elevate"
+                      onClick={() => {
+                        setMessages(prev => prev.map(m => 
+                          m.id === message.id ? { ...m, expanded: !m.expanded } : m
+                        ));
+                      }}
+                      data-testid={`completion-message-${message.sectionTitle}`}
+                    >
+                      <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
+                        <span>{message.content}</span>
+                      </div>
+                      {message.expanded && message.sectionContent && (
+                        <div className="mt-2 pt-2 border-t border-green-200 dark:border-green-900/30 text-xs leading-relaxed whitespace-pre-wrap text-green-800 dark:text-green-300 line-clamp-none">
+                          {message.sectionContent}
+                        </div>
+                      )}
+                      {!message.expanded && message.sectionContent && (
+                        <div className="mt-1 text-xs text-green-600 dark:text-green-500">
+                          Click to show content
+                        </div>
+                      )}
+                    </Card>
+                  </div>
+                );
+              }
+
+              // Legacy expandable system messages (keep for backwards compatibility)
               if (message.role === "system" && message.isExpandable) {
                 return (
                   <div key={message.id} className="flex gap-3">
@@ -846,7 +935,7 @@ export default function Notebook() {
                       </AvatarFallback>
                     </Avatar>
                     <Card 
-                      className="p-3 max-w-[80%] cursor-pointer hover-elevate"
+                      className="p-3 max-w-[80%] bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900/30 cursor-pointer hover-elevate"
                       onClick={() => {
                         setMessages(prev => prev.map(m => 
                           m.id === message.id ? { ...m, expanded: !m.expanded } : m
@@ -858,12 +947,12 @@ export default function Notebook() {
                         <span>{message.content}</span>
                       </div>
                       {message.expanded && message.sectionContent && (
-                        <div className="mt-2 pt-2 border-t border-border text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground line-clamp-none">
+                        <div className="mt-2 pt-2 border-t border-green-200 dark:border-green-900/30 text-xs leading-relaxed whitespace-pre-wrap text-green-800 dark:text-green-300 line-clamp-none">
                           {message.sectionContent}
                         </div>
                       )}
                       {!message.expanded && (
-                        <div className="mt-1 text-xs text-muted-foreground">
+                        <div className="mt-1 text-xs text-green-600 dark:text-green-500">
                           Click to show content
                         </div>
                       )}
@@ -872,6 +961,7 @@ export default function Notebook() {
                 );
               }
               
+              // Regular user/assistant messages
               return (
                 <div key={message.id} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                   {message.role === "assistant" && (
