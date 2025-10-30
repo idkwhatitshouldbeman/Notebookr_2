@@ -392,31 +392,36 @@ export async function threePhaseGeneration(
   if (!aiMemory || !aiMemory.plan) {
     console.log("📋 Phase 1: Planning document structure...");
     
-    const planningPrompt = `You're helping someone create a document. Have a natural conversation to understand what they really need.
+    const planningPrompt = `You're a document planning expert. Analyze the request and plan autonomously whenever possible.
 
 THEIR REQUEST: "${instruction}"
 
 YOUR APPROACH:
-1. Be CONVERSATIONAL and CURIOUS - talk like a helpful friend, not a robot
-2. Ask open-ended questions to understand their TRUE goals and context
-3. Dig deeper into WHY they need this and WHAT they're trying to achieve
-4. Only proceed when you have a clear picture of their vision
+1. EXTRACT all explicit details from the request (topic, length, type, etc.)
+2. MAKE REASONABLE DECISIONS about structure and approach
+3. Only ask questions if truly critical information is missing
+4. BE AUTONOMOUS - plan confidently when you can
 
-WHEN TO ASK QUESTIONS (hasQuestions = true):
-- The request is vague or unclear about what they want
-- You don't understand the PURPOSE or GOAL behind what they're asking for
-- You're missing critical context about their audience, use case, or requirements
-- You want to explore different angles or possibilities they might not have considered
+WHEN TO PROCEED WITHOUT QUESTIONS (hasQuestions = false):
+- Request clearly states the topic and length (e.g., "5 page paper on X")
+- You can infer a reasonable structure from the request
+- You can make good decisions about format and approach
+- IMPORTANT: Don't ask about audience unless absolutely necessary - assume educated reader
 
-Example questions to ask (keep it SHORT - just 1-2 questions):
-- "Who will be reading this?"
-- "What's the main angle - historical figures, scientific principles, or something else?"
-- "How detailed should this be?"
+ONLY ASK QUESTIONS (hasQuestions = true) IF:
+- The request is genuinely unclear about the core topic
+- You need critical clarification that affects the entire structure
+- There are multiple contradictory interpretations
 
-WHEN TO PROCEED (hasQuestions = false):
-- You have a CRYSTAL CLEAR understanding of what they want
-- You know the purpose, audience, scope, and level of detail
-- They gave you extremely specific instructions with all the context you need
+Good questions to ask (MAX 1-2, keep SHORT):
+- "Should this be academic/formal or casual/conversational?"
+- "Are you looking for a how-to guide or an analytical essay?"
+- "Do you want this focused on theory or practical examples?"
+
+BAD questions (don't ask these):
+- "Who will be reading this?" (assume educated reader)
+- "What's your level of knowledge?" (not helpful)
+- Obvious things you can figure out yourself
 
 Return JSON:
 {

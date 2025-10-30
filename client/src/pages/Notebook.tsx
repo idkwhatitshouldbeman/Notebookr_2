@@ -927,23 +927,58 @@ export default function Notebook() {
                 </div>
               </AccordionTrigger>
               <AccordionContent>
-                <div className="space-y-1 pb-1.5 text-xs">
-                  {currentPlan.variables.topic && (
-                    <div className="flex gap-1.5">
-                      <span className="font-medium text-muted-foreground">Topic:</span>
-                      <span className="text-foreground">{currentPlan.variables.topic}</span>
-                    </div>
-                  )}
-                  {currentPlan.variables.targetLength && (
-                    <div className="flex gap-1.5">
-                      <span className="font-medium text-muted-foreground">Length:</span>
-                      <span className="text-foreground">{currentPlan.variables.targetLength}</span>
-                    </div>
-                  )}
-                  {currentPlan.variables.documentType && (
-                    <div className="flex gap-1.5">
-                      <span className="font-medium text-muted-foreground">Type:</span>
-                      <span className="text-foreground">{currentPlan.variables.documentType}</span>
+                <div className="space-y-2 pb-1.5 text-xs">
+                  {/* Main Context */}
+                  <div className="space-y-1">
+                    {currentPlan.variables.topic && (
+                      <div className="flex gap-1.5">
+                        <span className="font-medium text-muted-foreground">Topic:</span>
+                        <span className="text-foreground">{currentPlan.variables.topic}</span>
+                      </div>
+                    )}
+                    {currentPlan.variables.targetLength && (
+                      <div className="flex gap-1.5">
+                        <span className="font-medium text-muted-foreground">Length:</span>
+                        <span className="text-foreground">{currentPlan.variables.targetLength}</span>
+                      </div>
+                    )}
+                    {currentPlan.variables.documentType && (
+                      <div className="flex gap-1.5">
+                        <span className="font-medium text-muted-foreground">Type:</span>
+                        <span className="text-foreground">{currentPlan.variables.documentType}</span>
+                      </div>
+                    )}
+                    {currentPlan.variables.tone && (
+                      <div className="flex gap-1.5">
+                        <span className="font-medium text-muted-foreground">Tone:</span>
+                        <span className="text-foreground">{currentPlan.variables.tone}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Comments Section for less common modifiers */}
+                  {(currentPlan.variables.targetAudience || 
+                    currentPlan.variables.focusAreas?.length > 0 || 
+                    currentPlan.variables.comments) && (
+                    <div className="pt-2 border-t border-border space-y-1">
+                      <div className="font-medium text-muted-foreground text-[10px] uppercase tracking-wide mb-1">
+                        Notes
+                      </div>
+                      {currentPlan.variables.targetAudience && (
+                        <div className="flex gap-1.5">
+                          <span className="font-medium text-muted-foreground">Audience:</span>
+                          <span className="text-foreground">{currentPlan.variables.targetAudience}</span>
+                        </div>
+                      )}
+                      {currentPlan.variables.focusAreas?.length > 0 && (
+                        <div className="flex gap-1.5">
+                          <span className="font-medium text-muted-foreground">Focus:</span>
+                          <span className="text-foreground">{currentPlan.variables.focusAreas.join(', ')}</span>
+                        </div>
+                      )}
+                      {currentPlan.variables.comments && (
+                        <div className="text-muted-foreground italic">{currentPlan.variables.comments}</div>
+                      )}
                     </div>
                   )}
                 </div>
