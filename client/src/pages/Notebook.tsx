@@ -52,13 +52,20 @@ interface MessageGroup {
 
 // Helper function to infer message type from content (for backward compatibility)
 function inferMessageType(message: Message): "status" | "completion" | "regular" {
-  // If messageType is explicitly set, use it
+  const content = message.content.toLowerCase();
+  
+  // ALWAYS treat questions as regular messages (override database value)
+  // Questions need immediate visibility and shouldn't be hidden in activity logs
+  if (content.includes("?") || content.includes("should this") || content.includes("would you like")) {
+    return "regular";
+  }
+  
+  // If messageType is explicitly set and it's not a question, use it
   if (message.messageType) {
     return message.messageType;
   }
   
   // For backward compatibility, infer from content
-  const content = message.content.toLowerCase();
   
   // Completion patterns
   if (
