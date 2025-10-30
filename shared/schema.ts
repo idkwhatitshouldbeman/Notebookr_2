@@ -53,6 +53,7 @@ export const messages = pgTable("messages", {
   notebookId: varchar("notebook_id").notNull().references(() => notebooks.id, { onDelete: "cascade" }),
   role: varchar("role").notNull(), // "user", "assistant", or "system"
   content: text("content").notNull(),
+  messageType: varchar("message_type"), // "status" (yellow, collapsible) or "completion" (green, always visible)
   sectionTitle: text("section_title"), // For section completion messages
   isExpandable: varchar("is_expandable"), // "true" or null - for section completion messages
   createdAt: timestamp("created_at").notNull().defaultNow(),
