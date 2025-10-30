@@ -449,10 +449,26 @@ export default function Notebook() {
       console.log("AI is editing notebook...");
       setProcessingStartTime(Date.now()); // Start tracking time
       
+      // Add initial status message
+      const startMessage: Message = {
+        id: `status-start-${Date.now()}`,
+        role: "assistant",
+        content: "Starting AI workflow...",
+        messageType: "status"
+      };
+      setMessages(prev => [...prev, startMessage]);
+      saveMessage.mutate({
+        notebookId: id!,
+        role: "assistant",
+        content: "Starting AI workflow...",
+        messageType: "status"
+      });
+      
       // Keep calling AI until complete
       let aiMemory: any = persistedAiMemory || undefined; // Use persisted memory if available
       let isComplete = false;
       let iterationCount = 0;
+      let lastPhase: string | null = null;
       // No iteration limit - run until AI marks complete
       while (!isComplete) {
         iterationCount++;
@@ -557,13 +573,58 @@ export default function Notebook() {
         
         // Update phase and plan
         if (result) {
+          // Detect phase transitions and add status messages
+          if (lastPhase !== result.phase) {
+            let phaseMessage = "";
+            if (result.phase === "plan") {
+              phaseMessage = "Phase: Planning document structure";
+            } else if (result.phase === "execute") {
+              phaseMessage = "Phase: Writing content";
+              // Add plan details
+              if (result.plan && result.plan.requiredSections) {
+                const sectionCount = result.plan.requiredSections.length;
+                const planDetailMsg: Message = {
+                  id: `status-plan-${Date.now()}`,
+                  role: "assistant",
+                  content: `Generated plan with ${sectionCount} sections`,
+                  messageType: "status"
+                };
+                setMessages(prev => [...prev, planDetailMsg]);
+                saveMessage.mutate({
+                  notebookId: id!,
+                  role: "assistant",
+                  content: `Generated plan with ${sectionCount} sections`,
+                  messageType: "status"
+                });
+              }
+            } else if (result.phase === "review") {
+              phaseMessage = "Phase: Reviewing content quality";
+            } else if (result.phase === "postprocess") {
+              phaseMessage = "Phase: Refining and humanizing";
+            }
+            
+            if (phaseMessage) {
+              const phaseMsg: Message = {
+                id: `status-phase-${Date.now()}`,
+                role: "assistant",
+                content: phaseMessage,
+                messageType: "status"
+              };
+              setMessages(prev => [...prev, phaseMsg]);
+              saveMessage.mutate({
+                notebookId: id!,
+                role: "assistant",
+                content: phaseMessage,
+                messageType: "status"
+              });
+            }
+            lastPhase = result.phase;
+          }
+          
           setAiPhase(result.phase || null);
           if (result.plan) {
             setCurrentPlan(result.plan);
           }
-          
-          // Update phase without showing messages
-          // (Phase indicator is shown in the UI status bar instead)
           
           // Auto-generate title if it's still "Untitled Notebook" and AI suggested a title
           if (notebook?.title === "Untitled Notebook" && result.suggestedTitle) {
@@ -575,7 +636,11 @@ export default function Notebook() {
         // Apply AI actions automatically (Cursor-style)
         if (result && result.actions && Array.isArray(result.actions)) {
           let createCount = 0;
+          let actionIndex = 0;
+          const totalActions = result.actions.length;
+          
           for (const action of result.actions) {
+            actionIndex++;
             // Validate action has required fields
             if (!action.type || !action.sectionId || action.content === undefined) {
               console.warn(`Skipping invalid action:`, action);
@@ -588,6 +653,22 @@ export default function Notebook() {
               // Find the section and update it
               const targetSection = sections.find(s => s.id === action.sectionId);
               if (targetSection) {
+                // Add status message before updating
+                const wordCount = action.content.split(/\s+/).filter(Boolean).length;
+                const updateStatusMsg: Message = {
+                  id: `status-update-${Date.now()}-${targetSection.id}`,
+                  role: "assistant",
+                  content: `Updating ${targetSection.title} (${wordCount} words)`,
+                  messageType: "status"
+                };
+                setMessages(prev => [...prev, updateStatusMsg]);
+                saveMessage.mutate({
+                  notebookId: id!,
+                  role: "assistant",
+                  content: `Updating ${targetSection.title} (${wordCount} words)`,
+                  messageType: "status"
+                });
+                
                 setEditingSections(prev => new Set(prev).add(targetSection.id));
                 setRecentlyUpdatedSections(prev => new Set(prev).add(targetSection.id));
                 try {
@@ -620,6 +701,24 @@ export default function Notebook() {
                     messageType: "completion"
                   });
                   
+                  // Add progress indicator
+                  if (result.plan && result.plan.requiredSections) {
+                    const totalSections = result.plan.requiredSections.length;
+                    const progressMsg: Message = {
+                      id: `status-progress-${Date.now()}`,
+                      role: "assistant",
+                      content: `Progress: ${actionIndex}/${totalSections} sections completed`,
+                      messageType: "status"
+                    };
+                    setMessages(prev => [...prev, progressMsg]);
+                    saveMessage.mutate({
+                      notebookId: id!,
+                      role: "assistant",
+                      content: `Progress: ${actionIndex}/${totalSections} sections completed`,
+                      messageType: "status"
+                    });
+                  }
+                  
                   // Clear the highlight after 2 seconds
                   setTimeout(() => {
                     setRecentlyUpdatedSections(prev => {
@@ -643,6 +742,22 @@ export default function Notebook() {
             } else if (action.type === "create") {
               // Create new section with unique orderIndex
               try {
+                // Add status message before creating
+                const wordCount = action.content.split(/\s+/).filter(Boolean).length;
+                const createStatusMsg: Message = {
+                  id: `status-create-${Date.now()}-${action.sectionId}`,
+                  role: "assistant",
+                  content: `Creating ${action.sectionId} (${wordCount} words)`,
+                  messageType: "status"
+                };
+                setMessages(prev => [...prev, createStatusMsg]);
+                saveMessage.mutate({
+                  notebookId: id!,
+                  role: "assistant",
+                  content: `Creating ${action.sectionId} (${wordCount} words)`,
+                  messageType: "status"
+                });
+                
                 const newSection = await createSection.mutateAsync({
                   notebookId: id!,
                   title: action.sectionId,
@@ -674,6 +789,24 @@ export default function Notebook() {
                   isExpandable: "true",
                   messageType: "completion"
                 });
+                
+                // Add progress indicator
+                if (result.plan && result.plan.requiredSections) {
+                  const totalSections = result.plan.requiredSections.length;
+                  const progressMsg: Message = {
+                    id: `status-progress-${Date.now()}`,
+                    role: "assistant",
+                    content: `Progress: ${actionIndex}/${totalSections} sections completed`,
+                    messageType: "status"
+                  };
+                  setMessages(prev => [...prev, progressMsg]);
+                  saveMessage.mutate({
+                    notebookId: id!,
+                    role: "assistant",
+                    content: `Progress: ${actionIndex}/${totalSections} sections completed`,
+                    messageType: "status"
+                  });
+                }
                 
                 // Highlight new section
                 if (newSection?.id) {
