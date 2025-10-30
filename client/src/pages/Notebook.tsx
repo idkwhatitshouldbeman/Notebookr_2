@@ -342,7 +342,7 @@ export default function Notebook() {
     };
     setMessages(prev => [...prev, userMessage]);
     
-    // Save user message to database
+    // Save user message to database (no messageType for regular chat messages)
     saveMessage.mutate({
       notebookId: id!,
       role: "user",
@@ -456,8 +456,9 @@ export default function Notebook() {
           saveMessage.mutate({
             notebookId: id!,
             role: "assistant",
-            content: `${timingDescription} in ${apiDuration}s`
-          });
+            content: `${timingDescription} in ${apiDuration}s`,
+            messageType: "status"
+          } as any);
         }
         
         // Update phase and plan
@@ -520,7 +521,8 @@ export default function Notebook() {
                     role: "assistant" as any,
                     content: `Finished making: ${targetSection.title}`,
                     sectionTitle: targetSection.title,
-                    isExpandable: "true"
+                    isExpandable: "true",
+                    messageType: "completion"
                   } as any);
                   
                   // Clear the highlight after 2 seconds
@@ -573,7 +575,8 @@ export default function Notebook() {
                   role: "assistant" as any,
                   content: `Finished making: ${action.sectionId}`,
                   sectionTitle: action.sectionId,
-                  isExpandable: "true"
+                  isExpandable: "true",
+                  messageType: "completion"
                 } as any);
                 
                 // Highlight new section
@@ -624,8 +627,9 @@ export default function Notebook() {
             saveMessage.mutate({
               notebookId: id!,
               role: "assistant",
-              content: result.message || "I need more information. Please provide additional details."
-            });
+              content: result.message || "I need more information. Please provide additional details.",
+              messageType: "status"
+            } as any);
             
             setAiPhase(null);
             setProcessingStartTime(null); // Stop tracking time
@@ -662,8 +666,9 @@ export default function Notebook() {
       saveMessage.mutate({
         notebookId: id!,
         role: "assistant",
-        content: completionMessage
-      });
+        content: completionMessage,
+        messageType: "status"
+      } as any);
     } catch (error: any) {
       console.error("❌ AI error:", error);
       setAiPhase(null);
@@ -705,8 +710,9 @@ export default function Notebook() {
       saveMessage.mutate({
         notebookId: id!,
         role: "assistant",
-        content: errorText
-      });
+        content: errorText,
+        messageType: "status"
+      } as any);
     }
   };
 
