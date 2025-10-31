@@ -1,6 +1,12 @@
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import { storage } from "../_shared/storage";
-import { hashPassword, sanitizeUser, generateToken, setCorsHeaders, handleOptions } from "../_shared/auth";
+import { hashPassword, sanitizeUser, generateToken } from "../_shared/auth";
+import { setCorsHeaders, handleOptions } from "../_shared/cors";
+import { sendEmail, generateVerificationEmailHtml } from "../_shared/email";
+import { randomBytes } from "crypto";
+import { promisify } from "util";
+
+const randomBytesAsync = promisify(randomBytes);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log("[REGISTER] Request received", {
@@ -62,11 +68,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log("[REGISTER] Hashing password");
     const hashedPassword = await hashPassword(password);
 
+    // Generate verification token
+    console.log("[REGISTER] Generating verification token");
+    const tokenBytes = await randomBytesAsync(32);
+    const verificationToken = tokenBytes.toString("hex");
+
     // Create user
     console.log("[REGISTER] Creating user with email:", normalizedEmail);
     const user = await storage.createUser({
       email: normalizedEmail,
       password: hashedPassword,
+      emailVerified: "false",
+      emailVerificationToken: verificationToken,
       credits: 0,
       selectedAiModel: "free",
     });
@@ -76,20 +89,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       email: user.email,
     });
 
-    // Generate token
-    console.log("[REGISTER] Generating token for user:", user.id);
-    const token = generateToken(user.id);
+    // Generate auth token
+    console.log("[REGISTER] Generating auth token for user:", user.id);
+    const authToken = generateToken(user.id);
+
+    // Generate verification URL
+    const baseUrl = process.env.FRONTEND_URL || process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : "http://localhost:5173";
+    const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+
+    // Send verification email
+    try {
+      console.log("[REGISTER] Sending verification email to:", normalizedEmail);
+      await sendEmail({
+        to: normalizedEmail,
+        subject: "Verify your Notebookr account",
+        html: generateVerificationEmailHtml(verificationUrl),
+      });
+      console.log("[REGISTER] Verification email sent successfully");
+    } catch (emailError) {
+      console.error("[REGISTER] Failed to send verification email:", emailError);
+      // Continue even if email fails - user can request resend later
+    }
 
     console.log("[REGISTER] Registration successful", {
       userId: user.id,
       email: user.email,
-      tokenGenerated: !!token,
+      tokenGenerated: !!authToken,
     });
 
     // Return user and token
     res.status(201).json({
       user: sanitizeUser(user),
-      token,
+      token: authToken,
+      emailVerificationSent: true,
     });
   } catch (error: any) {
     console.error("[REGISTER] Error occurred:", {

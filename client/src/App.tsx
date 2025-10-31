@@ -14,12 +14,14 @@ import Home from "@/pages/Home";
 import Notebook from "@/pages/Notebook";
 import Templates from "@/pages/Templates";
 import Settings from "@/pages/Settings";
+import VerifyEmail from "@/pages/VerifyEmail";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
       <Route path="/auth" component={Auth} />
+      <Route path="/verify-email" component={VerifyEmail} />
       <ProtectedRoute path="/" component={Home} />
       <ProtectedRoute path="/notebook/:id" component={Notebook} />
       <ProtectedRoute path="/templates" component={Templates} />

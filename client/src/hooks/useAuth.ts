@@ -144,26 +144,30 @@ export function useAuth() {
           email: data.user?.email,
         });
 
-        return data.user || data;
-      } catch (error: any) {
-        console.error("[REGISTER] Request failed:", {
-          message: error?.message,
-          stack: error?.stack,
-          name: error?.name,
-          error: error,
-          timestamp: new Date().toISOString(),
-        });
-        throw error;
-      }
-    },
-    onSuccess: (user: User) => {
-      console.log("[REGISTER] Mutation successful, updating cache", {
-        userId: user?.id,
-        email: user?.email,
+      return data.user || data;
+    } catch (error: any) {
+      console.error("[REGISTER] Request failed:", {
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name,
+        error: error,
+        timestamp: new Date().toISOString(),
       });
-      queryClient.setQueryData(["/api/user"], user);
-    },
-    onError: (error: Error) => {
+      throw error;
+    }
+  },
+  onSuccess: (user: User) => {
+    console.log("[REGISTER] Mutation successful, updating cache", {
+      userId: user?.id,
+      email: user?.email,
+    });
+    queryClient.setQueryData(["/api/user"], user);
+    toast({
+      title: "Account created!",
+      description: "Please check your email to verify your account. We've sent you a verification link.",
+    });
+  },
+  onError: (error: Error) => {
       console.error("[REGISTER] Mutation error:", {
         message: error?.message,
         stack: error?.stack,

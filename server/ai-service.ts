@@ -300,7 +300,8 @@ type ThreePhaseStreamEvent =
   | { type: "action"; action: any }
   | { type: "progress"; message: string }
   | { type: "complete"; result: ThreePhaseResponse }
-  | { type: "error"; error: string };
+  | { type: "error"; error: string }
+  | { type: "heartbeat" };
 
 // Streaming version of three-phase generation with heartbeats to prevent 504s
 export async function* threePhaseGenerationStream(

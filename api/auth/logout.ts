@@ -1,5 +1,5 @@
 import { VercelRequest, VercelResponse } from "@vercel/node";
-import { setCorsHeaders, handleOptions } from "../_shared/auth";
+import { setCorsHeaders, handleOptions } from "../_shared/cors";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "OPTIONS") {

@@ -1,7 +1,8 @@
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
 import Stripe from "stripe";
-import { requireAuth, setCorsHeaders, handleOptions } from "../../_shared/auth";
+import { requireAuth } from "../../_shared/auth";
+import { setCorsHeaders, handleOptions } from "../../_shared/cors";
 
 const stripe = process.env.STRIPE_SECRET_KEY 
   ? new Stripe(process.env.STRIPE_SECRET_KEY, {

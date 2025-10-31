@@ -14,6 +14,9 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserAiModel(userId: string, model: string): Promise<void>;
+  verifyUserEmail(userId: string): Promise<void>;
+  updateUserVerificationToken(userId: string, token: string | null): Promise<void>;
+  getUserByVerificationToken(token: string): Promise<User | undefined>;
   
   // Session store
   sessionStore: session.Store;
@@ -196,6 +199,32 @@ export class DatabaseStorage implements IStorage {
     await db.update(users)
       .set({ selectedAiModel: model })
       .where(eq(users.id, userId));
+  }
+
+  async verifyUserEmail(userId: string): Promise<void> {
+    await db.update(users)
+      .set({ 
+        emailVerified: "true",
+        emailVerificationToken: null,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async updateUserVerificationToken(userId: string, token: string | null): Promise<void> {
+    await db.update(users)
+      .set({ 
+        emailVerificationToken: token,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async getUserByVerificationToken(token: string): Promise<User | undefined> {
+    const [user] = await db.select()
+      .from(users)
+      .where(eq(users.emailVerificationToken, token));
+    return user;
   }
 
   async addCredits(userId: string, credits: number, stripePaymentId: string, description: string): Promise<void> {

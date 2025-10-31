@@ -23,6 +23,8 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
+  emailVerified: varchar("email_verified").notNull().default("false"),
+  emailVerificationToken: varchar("email_verification_token"),
   credits: integer("credits").notNull().default(0),
   selectedAiModel: varchar("selected_ai_model").notNull().default("free"),
   createdAt: timestamp("created_at").defaultNow(),

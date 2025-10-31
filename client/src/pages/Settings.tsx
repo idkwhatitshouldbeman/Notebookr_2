@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/hooks/useAuth";
-import { LogOut, Coins, Zap, TrendingUp, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { LogOut, Coins, Zap, TrendingUp, Clock, CheckCircle2, XCircle, Mail, Loader2 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Label } from "@/components/ui/label";
@@ -114,9 +114,50 @@ export default function Settings() {
     updateModelMutation.mutate(model);
   };
 
+  const resendVerificationMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/auth/resend-verification");
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to send verification email");
+      }
+      return await response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Verification email sent",
+        description: "Please check your inbox for the verification email.",
+      });
+      // Refresh user data
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send verification email",
+        variant: "destructive",
+      });
+    },
+  });
+
   const credits = creditsData?.credits || 0;
   const creditsInDollars = (credits / 1000).toFixed(2);
   const hasPremium = credits > 0;
+
+  function ResendVerificationButton() {
+    return (
+      <Button
+        onClick={() => resendVerificationMutation.mutate()}
+        disabled={resendVerificationMutation.isPending}
+        variant="outline"
+        className="mt-2"
+      >
+        {resendVerificationMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        {!resendVerificationMutation.isPending && <Mail className="mr-2 h-4 w-4" />}
+        {resendVerificationMutation.isPending ? "Sending..." : "Resend Verification Email"}
+      </Button>
+    );
+  }
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
@@ -337,6 +378,23 @@ export default function Settings() {
               <label className="text-sm font-medium text-muted-foreground">Email</label>
               <p className="text-base mt-1">{user?.email}</p>
             </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Email Verification</label>
+              <div className="mt-2 flex items-center gap-3">
+                {user?.emailVerified === "true" ? (
+                  <>
+                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    <span className="text-sm text-green-600 dark:text-green-400">Verified</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-5 w-5 text-orange-500" />
+                    <span className="text-sm text-orange-600 dark:text-orange-400">Not verified</span>
+                    <ResendVerificationButton />
+                  </>
+                )}
+              </div>
+            </div>
             <div className="pt-4">
               <Button 
                 variant="destructive" 
@@ -350,6 +408,27 @@ export default function Settings() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Email Verification Component */}
+        {user && user.emailVerified !== "true" && (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold">Email Verification</h2>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Mail className="h-5 w-5" />
+                  Verify Your Email
+                </CardTitle>
+                <CardDescription>
+                  Please verify your email address to access all features
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResendVerificationButton />
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Preferences Section */}
         <div id="preferences" className="space-y-4">
