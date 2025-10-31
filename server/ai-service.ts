@@ -329,12 +329,17 @@ export async function* threePhaseGenerationStream(
       }
     );
     
-    // Send heartbeat events every 5 seconds while waiting
+    // Send heartbeat events every 7 seconds while waiting (within 10s timeout)
     let heartbeatCount = 0;
+    const heartbeatInterval = 7000; // 7 seconds to stay well under 10s timeout
+    
     while (!generationComplete) {
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await new Promise(resolve => setTimeout(resolve, heartbeatInterval));
       heartbeatCount++;
-      yield { type: "progress", message: `Processing... (${heartbeatCount * 5}s elapsed)` };
+      // Send explicit heartbeat to keep connection alive
+      yield { type: "heartbeat" };
+      // Also send progress message
+      yield { type: "progress", message: `Processing... (${heartbeatCount * heartbeatInterval / 1000}s elapsed)` };
     }
     
     // Check if there was an error

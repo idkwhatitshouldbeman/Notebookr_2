@@ -17,9 +17,9 @@ export const sessions = pgTable(
 // User storage table for standalone auth
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: varchar("username").unique().notNull(),
+  email: varchar("email").unique().notNull(),
   password: varchar("password").notNull(),
-  email: varchar("email").unique(),
+  username: varchar("username"),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
@@ -92,13 +92,24 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
   createdAt: true,
 });
 
+// Gmail validation function
+const gmailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i;
+
+export const gmailSchema = z.string()
+  .email("Please enter a valid email address")
+  .refine((email) => gmailRegex.test(email), {
+    message: "Please use a Gmail address (@gmail.com)",
+  })
+  .transform((email) => email.toLowerCase().trim());
+
 // User schemas for authentication
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 }).extend({
-  email: z.string().optional().nullable(),
+  email: gmailSchema,
+  username: z.string().optional().nullable(),
   firstName: z.string().optional().nullable(),
   lastName: z.string().optional().nullable(),
   profileImageUrl: z.string().optional().nullable(),

@@ -7,20 +7,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Sparkles, BookOpen, Zap } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Loader2, Sparkles, BookOpen, Zap, AlertCircle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertUserSchema } from "@shared/schema";
+import { insertUserSchema, gmailSchema } from "@shared/schema";
 import { z } from "zod";
 
 const loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
+  email: gmailSchema,
   password: z.string().min(1, "Password is required"),
 });
 
 const registerSchema = insertUserSchema.pick({ 
-  username: true, 
+  email: true, 
   password: true
+}).extend({
+  confirmPassword: z.string().min(1, "Please confirm your password"),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
@@ -32,14 +38,15 @@ export default function Auth() {
 
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { username: "", password: "" },
+    defaultValues: { email: "", password: "" },
   });
 
   const registerForm = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
     defaultValues: { 
-      username: "", 
-      password: ""
+      email: "", 
+      password: "",
+      confirmPassword: ""
     },
   });
 
@@ -49,11 +56,28 @@ export default function Auth() {
   }
 
   const onLogin = (data: LoginForm) => {
+    console.log("[AUTH] Login form submitted", {
+      email: data.email,
+      hasPassword: !!data.password,
+      passwordLength: data.password?.length || 0,
+      timestamp: new Date().toISOString(),
+    });
     loginMutation.mutate(data);
   };
 
   const onRegister = (data: RegisterForm) => {
-    registerMutation.mutate(data);
+    console.log("[AUTH] Register form submitted", {
+      email: data.email,
+      hasPassword: !!data.password,
+      passwordLength: data.password?.length || 0,
+      passwordsMatch: data.password === data.confirmPassword,
+      timestamp: new Date().toISOString(),
+    });
+    // Only send email and password to the API, not confirmPassword
+    registerMutation.mutate({
+      email: data.email,
+      password: data.password,
+    });
   };
 
   return (
@@ -80,16 +104,34 @@ export default function Auth() {
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-4">
+                    {loginMutation.error && (
+                      <Alert variant="destructive" className="mb-4">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Sign in failed</AlertTitle>
+                        <AlertDescription>
+                          {loginMutation.error.message.includes("401") || loginMutation.error.message.toLowerCase().includes("invalid") || loginMutation.error.message.toLowerCase().includes("unauthorized")
+                            ? "Invalid email or password. Please try again."
+                            : loginMutation.error.message.includes("404")
+                            ? "Unable to connect to the server. Please check your connection."
+                            : loginMutation.error.message.includes("500") || loginMutation.error.message.includes("502") || loginMutation.error.message.includes("503")
+                            ? "Server error. Please try again in a moment."
+                            : loginMutation.error.message.includes("network") || loginMutation.error.message.includes("fetch")
+                            ? "Network error. Please check your internet connection."
+                            : "Unable to sign in. Please check your credentials and try again."}
+                        </AlertDescription>
+                      </Alert>
+                    )}
                     <div className="space-y-2">
-                      <Label htmlFor="login-username">Username</Label>
+                      <Label htmlFor="login-email">Gmail</Label>
                       <Input
-                        id="login-username"
-                        data-testid="input-login-username"
-                        {...loginForm.register("username")}
-                        placeholder="Enter username"
+                        id="login-email"
+                        type="email"
+                        data-testid="input-login-email"
+                        {...loginForm.register("email")}
+                        placeholder="yourname@gmail.com"
                       />
-                      {loginForm.formState.errors.username && (
-                        <p className="text-sm text-destructive">{loginForm.formState.errors.username.message}</p>
+                      {loginForm.formState.errors.email && (
+                        <p className="text-sm text-destructive">{loginForm.formState.errors.email.message}</p>
                       )}
                     </div>
                     <div className="space-y-2">
@@ -127,16 +169,36 @@ export default function Auth() {
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-4">
+                    {registerMutation.error && (
+                      <Alert variant="destructive" className="mb-4">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Registration failed</AlertTitle>
+                        <AlertDescription>
+                          {registerMutation.error.message.toLowerCase().includes("email") && (registerMutation.error.message.toLowerCase().includes("taken") || registerMutation.error.message.toLowerCase().includes("exists"))
+                            ? "This email is already registered. Please use a different Gmail address."
+                            : registerMutation.error.message.toLowerCase().includes("password") && registerMutation.error.message.toLowerCase().includes("weak")
+                            ? "Password is too weak. Please choose a stronger password."
+                            : registerMutation.error.message.includes("404")
+                            ? "Unable to connect to the server. Please check your connection."
+                            : registerMutation.error.message.includes("500") || registerMutation.error.message.includes("502") || registerMutation.error.message.includes("503")
+                            ? "Server error. Please try again in a moment."
+                            : registerMutation.error.message.includes("network") || registerMutation.error.message.includes("fetch")
+                            ? "Network error. Please check your internet connection."
+                            : "Unable to create your account. Please try again."}
+                        </AlertDescription>
+                      </Alert>
+                    )}
                     <div className="space-y-2">
-                      <Label htmlFor="register-username">Username</Label>
+                      <Label htmlFor="register-email">Gmail</Label>
                       <Input
-                        id="register-username"
-                        data-testid="input-register-username"
-                        {...registerForm.register("username")}
-                        placeholder="Choose a username"
+                        id="register-email"
+                        type="email"
+                        data-testid="input-register-email"
+                        {...registerForm.register("email")}
+                        placeholder="yourname@gmail.com"
                       />
-                      {registerForm.formState.errors.username && (
-                        <p className="text-sm text-destructive">{registerForm.formState.errors.username.message}</p>
+                      {registerForm.formState.errors.email && (
+                        <p className="text-sm text-destructive">{registerForm.formState.errors.email.message}</p>
                       )}
                     </div>
                     <div className="space-y-2">
@@ -150,6 +212,19 @@ export default function Auth() {
                       />
                       {registerForm.formState.errors.password && (
                         <p className="text-sm text-destructive">{registerForm.formState.errors.password.message}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="register-confirm-password">Confirm Password</Label>
+                      <Input
+                        id="register-confirm-password"
+                        type="password"
+                        data-testid="input-register-confirm-password"
+                        {...registerForm.register("confirmPassword")}
+                        placeholder="Confirm your password"
+                      />
+                      {registerForm.formState.errors.confirmPassword && (
+                        <p className="text-sm text-destructive">{registerForm.formState.errors.confirmPassword.message}</p>
                       )}
                     </div>
                     <Button

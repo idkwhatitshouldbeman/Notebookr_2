@@ -334,15 +334,9 @@ export default function Settings() {
             </CardHeader>
             <CardContent className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Username</label>
-              <p className="text-base mt-1">{user?.username}</p>
+              <label className="text-sm font-medium text-muted-foreground">Email</label>
+              <p className="text-base mt-1">{user?.email}</p>
             </div>
-            {user?.email && (
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Email</label>
-                <p className="text-base mt-1">{user.email}</p>
-              </div>
-            )}
             <div className="pt-4">
               <Button 
                 variant="destructive" 
