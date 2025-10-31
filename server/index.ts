@@ -41,11 +41,31 @@ let serverInstance: any = null;
 async function setupApp() {
   if (serverInstance) return serverInstance;
   
+  // Log all incoming requests (before routes)
+  app.use((req, res, next) => {
+    console.log("[EXPRESS] Incoming request:", {
+      method: req.method,
+      path: req.path,
+      url: req.url,
+      query: req.query,
+      timestamp: new Date().toISOString(),
+    });
+    next();
+  });
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
+
+    console.error("[EXPRESS] Error handler:", {
+      status,
+      message,
+      stack: err.stack,
+      error: err,
+      timestamp: new Date().toISOString(),
+    });
 
     res.status(status).json({ message });
     throw err;

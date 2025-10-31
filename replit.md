@@ -11,7 +11,7 @@ Preferred communication style: Simple, everyday language.
 ### Frontend Architecture
 - **Technology Stack:** React with TypeScript, Vite, Wouter for routing, TanStack Query, Radix UI primitives with shadcn/ui components, and Tailwind CSS.
 - **Design System:** Custom color palette, Inter and JetBrains Mono fonts, comprehensive component library, theme switching, and responsive design.
-- **Key Features:** Standalone username/password authentication, chat-based AI content generation, conversational AI context understanding, notebook management (create, rename, delete, emoji support), chapters navigation, template system, real-time content updates, and secure user-scoped data access.
+- **Key Features:** Standalone email/password authentication with Gmail verification, chat-based AI content generation, conversational AI context understanding, notebook management (create, rename, delete, emoji support), chapters navigation, template system, real-time content updates, and secure user-scoped data access.
 - **UI/UX Decisions:** Full-screen document view, real-time chat progress updates (planning, executing, reviewing, post-processing), visual feedback for section updates, dynamic variables accordion, smart progress indicators, and live section completion updates.
 - **Messaging & Interaction:** Smart message grouping with collapsible "Activity log" blocks for status messages, visible "completion" messages, one-at-a-time conversational questions for natural dialogue, and enhanced context display.
 

@@ -71,35 +71,122 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/register", async (req, res, next) => {
-    const existingUser = await storage.getUserByEmail(req.body.email);
-    if (existingUser) {
-      return res.status(400).send("Email already exists");
+    console.log("[EXPRESS_AUTH] /api/register request received", {
+      method: req.method,
+      bodyKeys: Object.keys(req.body || {}),
+      hasEmail: !!req.body?.email,
+      hasPassword: !!req.body?.password,
+      timestamp: new Date().toISOString(),
+    });
+
+    try {
+      const existingUser = await storage.getUserByEmail(req.body.email);
+      if (existingUser) {
+        console.warn("[EXPRESS_AUTH] Registration failed - email already exists:", req.body.email);
+        return res.status(400).send("Email already exists");
+      }
+
+      console.log("[EXPRESS_AUTH] Creating new user:", req.body.email);
+      const user = await storage.createUser({
+        ...req.body,
+        password: await hashPassword(req.body.password),
+      });
+
+      console.log("[EXPRESS_AUTH] User created, logging in:", user.id);
+
+      req.login(user, (err) => {
+        if (err) {
+          console.error("[EXPRESS_AUTH] Login error after registration:", err);
+          return next(err);
+        }
+        console.log("[EXPRESS_AUTH] Registration successful:", user.id);
+        res.status(201).json(sanitizeUser(user));
+      });
+    } catch (error: any) {
+      console.error("[EXPRESS_AUTH] Registration error:", {
+        message: error?.message,
+        stack: error?.stack,
+        error: error,
+      });
+      next(error);
     }
-
-    const user = await storage.createUser({
-      ...req.body,
-      password: await hashPassword(req.body.password),
-    });
-
-    req.login(user, (err) => {
-      if (err) return next(err);
-      res.status(201).json(sanitizeUser(user));
-    });
   });
 
-  app.post("/api/login", passport.authenticate("local"), (req, res) => {
-    res.status(200).json(sanitizeUser(req.user!));
+  app.post("/api/login", (req, res, next) => {
+    console.log("[EXPRESS_AUTH] /api/login request received", {
+      method: req.method,
+      bodyKeys: Object.keys(req.body || {}),
+      hasEmail: !!req.body?.email,
+      hasPassword: !!req.body?.password,
+      timestamp: new Date().toISOString(),
+    });
+
+    passport.authenticate("local", (err: any, user: any, info: any) => {
+      if (err) {
+        console.error("[EXPRESS_AUTH] Login authentication error:", {
+          message: err.message,
+          stack: err.stack,
+          error: err,
+        });
+        return next(err);
+      }
+      if (!user) {
+        console.warn("[EXPRESS_AUTH] Login failed - invalid credentials", {
+          info: info?.message || "Invalid credentials",
+        });
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      req.logIn(user, (loginErr: any) => {
+        if (loginErr) {
+          console.error("[EXPRESS_AUTH] Login session error:", {
+            message: loginErr.message,
+            stack: loginErr.stack,
+            error: loginErr,
+          });
+          return next(loginErr);
+        }
+        console.log("[EXPRESS_AUTH] Login successful:", user.id);
+        res.status(200).json(sanitizeUser(req.user!));
+      });
+    })(req, res, next);
   });
 
   app.post("/api/logout", (req, res, next) => {
+    console.log("[EXPRESS_AUTH] /api/logout request received", {
+      method: req.method,
+      isAuthenticated: req.isAuthenticated(),
+      timestamp: new Date().toISOString(),
+    });
+
     req.logout((err) => {
-      if (err) return next(err);
+      if (err) {
+        console.error("[EXPRESS_AUTH] Logout error:", {
+          message: err.message,
+          stack: err.stack,
+          error: err,
+        });
+        return next(err);
+      }
+      console.log("[EXPRESS_AUTH] Logout successful");
       res.sendStatus(200);
     });
   });
 
   app.get("/api/user", (req, res) => {
-    if (!req.isAuthenticated()) return res.json(null);
+    console.log("[EXPRESS_AUTH] /api/user request received", {
+      method: req.method,
+      isAuthenticated: req.isAuthenticated(),
+      hasUser: !!req.user,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
+
+    if (!req.isAuthenticated()) {
+      console.log("[EXPRESS_AUTH] User not authenticated - returning null");
+      return res.json(null);
+    }
+    console.log("[EXPRESS_AUTH] Returning user:", req.user!.id);
     res.json(sanitizeUser(req.user!));
   });
 }
